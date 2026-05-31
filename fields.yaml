@@ -1,0 +1,245 @@
+field_categories:
+- category: Basic Identity
+  fields:
+  - name: name
+    required: false
+    detail_level: brief
+    description: Full canonical name of the framework/method/system
+  - name: origin_domain
+    required: false
+    detail_level: brief
+    description: Domain of origin (military, engineering, management, AI research,
+      etc.)
+  - name: year_developed
+    required: false
+    detail_level: brief
+    description: Year first formalized; if evolved over time, note major revision
+      years
+  - name: progenitor
+    required: false
+    detail_level: brief
+    description: Individual, institution, or research group that created it
+- category: Core Philosophy
+  fields:
+  - name: driving_insight
+    required: false
+    detail_level: moderate
+    description: The central insight or assumption that animates the approach — what
+      problem is it REALLY solving?
+  - name: decision_style
+    required: false
+    detail_level: moderate
+    description: 'How decisions are made: algorithmic, deliberative, emergent, vote-based,
+      hierarchical, consensus, probabilistic'
+  - name: problem_class_targeted
+    required: false
+    detail_level: moderate
+    description: What class of problem is this designed for? (well-defined vs. ill-defined,
+      static vs. dynamic, small vs. large, cooperative vs. adversarial)
+- category: Phase Structure
+  fields:
+  - name: ordered_phases
+    required: false
+    detail_level: moderate
+    description: Enumeration and description of each phase/stage/step; forward flow
+  - name: feedback_loops
+    required: false
+    detail_level: moderate
+    description: What loops back to what? Under what conditions? Are loops explicit
+      (designed) or implicit (emergent)?
+  - name: gates
+    required: false
+    detail_level: detailed
+    description: What approval/verification gates exist between phases? What criteria
+      must be met to pass each gate? What happens when a gate blocks?
+  - name: exit_criteria
+    required: false
+    detail_level: moderate
+    description: How does the system know it's done? What does 'done' mean? Are there
+      partial-completion states?
+- category: Decomposition
+  fields:
+  - name: decomposition_method
+    required: false
+    detail_level: detailed
+    description: How does it break a large problem into smaller pieces? (hierarchical,
+      recursive, value-driven, dependency-driven, domain-driven)
+  - name: granularity_guidance
+    required: false
+    detail_level: moderate
+    description: How far down do you decompose? What defines a 'leaf node' or 'atomic
+      unit'? What stops the recursion?
+  - name: boundary_rules
+    required: false
+    detail_level: moderate
+    description: 'Rules for ensuring clean boundaries between sub-problems: no overlap
+      (MECE), no gaps, clear ownership and handoff'
+- category: Risk & Uncertainty
+  fields:
+  - name: risk_assessment_mechanism
+    required: false
+    detail_level: detailed
+    description: How are risks identified, classified, and scored? (pattern-matching,
+      probabilistic, LLM-judged, human-assigned, checklist-driven)
+  - name: unknown_handling
+    required: false
+    detail_level: detailed
+    description: What does the system do when it encounters something it doesn't know
+      or hasn't seen? (escalate, guess, halt, probe, default-safe, default-permissive)
+  - name: default_stance_on_unknown
+    required: false
+    detail_level: moderate
+    description: Is the default response to unknown situations PERMISSIVE (allow until
+      blocked) or RESTRICTIVE (block until approved)?
+  - name: safety_guardrails
+    required: false
+    detail_level: detailed
+    description: 'Specific safety mechanisms: sandboxing, I/O firewalls, allowlists/blocklists,
+      kill switches, red teaming cadence, attack class defenses (prompt injection,
+      Lies-in-the-Loop, tool misuse)'
+- category: Human Role
+  fields:
+  - name: human_decision_points
+    required: false
+    detail_level: detailed
+    description: At what specific points do humans intervene? What decisions are reserved
+      for humans? Is the human IN the loop or ON the loop?
+  - name: override_capability
+    required: false
+    detail_level: moderate
+    description: Can a human override, redirect, or halt the system mid-execution?
+      At what granularity? (full halt, per-subtask, per-action)
+  - name: fallback_when_no_human
+    required: false
+    detail_level: moderate
+    description: What happens when a human is unavailable? (block indefinitely, auto-approve,
+      degrade gracefully, timeout-and-default)
+- category: Scalability & Cost
+  fields:
+  - name: max_problem_size
+    required: false
+    detail_level: moderate
+    description: What's the largest problem this has been demonstrated on? What's
+      the theoretical limit? What breaks at scale?
+  - name: parallel_execution
+    required: false
+    detail_level: detailed
+    description: Does it support parallel execution of sub-problems? How are dependencies
+      resolved? Is parallelism first-class or bolted-on?
+  - name: team_scaling_model
+    required: false
+    detail_level: moderate
+    description: How does the approach scale with more agents/people? (linear, sub-linear,
+      super-linear, negative after threshold)
+  - name: cost_scaling_model
+    required: false
+    detail_level: detailed
+    description: How does computational cost scale with problem size and decomposition
+      granularity? What's the branching factor? Is it stable? (log-linear, polynomial,
+      exponential)
+- category: Adaptation & Recovery
+  fields:
+  - name: replanning_built_in
+    required: false
+    detail_level: detailed
+    description: Is replanning a first-class phase or an afterthought? Is it global
+      (replan everything) or local (compensate only what broke)?
+  - name: trigger_mechanism
+    required: false
+    detail_level: moderate
+    description: What triggers adaptation/replanning? (failure detection, confidence
+      drop, human intervention, environmental change, timeout)
+  - name: adaptation_cost
+    required: false
+    detail_level: moderate
+    description: What does it cost to replan? (full recomputation, partial update,
+      state preservation, lost work)
+  - name: failure_recovery_mechanism
+    required: false
+    detail_level: detailed
+    description: How does the system detect, isolate, and recover from failures? (retry,
+      local compensation, global replan, human escalation, graceful degradation, blast
+      radius containment)
+- category: Communication
+  fields:
+  - name: output_artifacts
+    required: false
+    detail_level: moderate
+    description: What artifacts does the process produce? (plan document, task list,
+      DAG graph, briefing, checklist, structured log)
+  - name: briefing_format
+    required: false
+    detail_level: moderate
+    description: How is the plan communicated to executors? What's the compression
+      format? (5-paragraph order, sprint backlog, Gantt chart, narrative doc, structured
+      YAML)
+  - name: traceability
+    required: false
+    detail_level: moderate
+    description: Can you trace from outcome back to decision back to assumption? Is
+      the rationale preserved? (commit log, decision record, audit trail, nothing)
+  - name: agent_communication_protocol
+    required: false
+    detail_level: detailed
+    description: What protocol for inter-agent communication? (MCP, A2A, ACP, ANP,
+      custom). Message serialization, discovery mechanism, sync vs. async
+- category: Learning & Memory
+  fields:
+  - name: learning_memory_architecture
+    required: false
+    detail_level: detailed
+    description: Does the system improve over time? What persists between runs? (episodic
+      memory, semantic memory, procedural memory, skill library, post-hoc fine-tuning,
+      distillation)
+- category: Performance
+  fields:
+  - name: latency_bounds
+    required: false
+    detail_level: moderate
+    description: What are the real-time requirements? (batch, interactive, near-real-time,
+      hard real-time). How does the system degrade under time pressure?
+  - name: evaluation_benchmarking
+    required: false
+    detail_level: detailed
+    description: What benchmarks validate the approach? (SWE-bench, GAIA, WebArena,
+      PlanBench, tau-bench, custom). What metrics? (success rate, Fix Rate, latency,
+      cost, token efficiency)
+- category: SW/LLM Applicability
+  fields:
+  - name: mapping_strength
+    required: false
+    detail_level: detailed
+    description: How well does this map to software development or LLM agent workflows?
+      What aspects transfer directly, what needs translation?
+  - name: gaps
+    required: false
+    detail_level: detailed
+    description: What's missing? What can't this approach handle in a software/agent
+      context? What assumptions don't hold?
+  - name: adaptation_required
+    required: false
+    detail_level: detailed
+    description: What would need to change to apply this to the JORDAN pipeline? Specific
+      design recommendations
+  - name: analogous_jordan_node
+    required: false
+    detail_level: brief
+    description: Which JORDAN node(s) does this most closely map to? (plan, research,
+      risk_assessment, execute, synthesize, replan, approval_gate)
+- category: Empirical Record
+  fields:
+  - name: validation_context
+    required: false
+    detail_level: moderate
+    description: Where has this been validated? (combat operations, industrial deployments,
+      academic benchmarks, production systems, wargaming exercises)
+  - name: known_failures
+    required: false
+    detail_level: detailed
+    description: 'Documented failure modes: when does it break? What conditions make
+      it unreliable? What are the known counterexamples?'
+  - name: where_still_used
+    required: false
+    detail_level: moderate
+    description: 'Current adoption: where is this actively used today? (military branches,
+      specific companies, research communities, open-source projects)'

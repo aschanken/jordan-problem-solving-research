@@ -1,0 +1,274 @@
+topic: "Systemized Problem Solving & Task Decomposition — Military-to-Software Analogues for JORDAN Pipeline Optimization"
+date: 2026-05-22
+method: "Dual-source — model knowledge + web search supplement (since 2024)"
+
+items:
+  # ── US / Allied Military Mission Planning ──
+  - id: 1
+    name: "MDMP (Military Decision-Making Process)"
+    domain: military_planning
+    description: "US Army 7-step methodology: receipt of mission → mission analysis → COA development → COA analysis (wargaming) → COA comparison → COA approval → orders production"
+  - id: 2
+    name: "JOPP (Joint Operation Planning Process)"
+    domain: military_planning
+    description: "Joint-level operational design with strategic framing, operational design methodology, and center of gravity analysis atop MDMP"
+  - id: 3
+    name: "OODA Loop (Boyd)"
+    domain: military_planning
+    description: "Observe-Orient-Decide-Act cycle; 'Orient' as sensemaking hub; generalized from air combat to all competitive domains"
+  - id: 4
+    name: "Commander's Intent + Mission Command"
+    domain: military_planning
+    description: "Decouple WHAT from HOW — commander states intent/end-state/constraints, subordinates determine execution; distributed decision-making"
+  - id: 5
+    name: "METT-TC Framework"
+    domain: military_planning
+    description: "Structured context assessment: Mission, Enemy, Terrain/Weather, Troops Available, Time, Civilian Considerations"
+  - id: 6
+    name: "SMEAC / 5-Paragraph Order"
+    domain: military_planning
+    description: "Situation, Mission, Execution, Admin/Logistics, Command/Signal — a compression format where the plan IS the communication protocol"
+  - id: 7
+    name: "Center of Gravity Analysis"
+    domain: military_planning
+    description: "Clausewitz-derived: find the hub of power and strike there; maps to identifying the one thing that, if changed, makes everything else easier"
+  - id: 8
+    name: "Red Teaming"
+    domain: military_planning
+    description: "Structured adversarial challenge — independent team stress-tests the plan against a thinking opponent"
+  - id: 9
+    name: "IPB (Intelligence Preparation of the Battlefield)"
+    domain: military_planning
+    description: "Systematic context-building before planning: define environment, evaluate threats, determine threat courses of action"
+  - id: 10
+    name: "Backbriefing + Rehearsal of Concept (ROC) Drill"
+    domain: military_planning
+    description: "Pre-execution shared understanding verification: subordinates brief the plan back to the commander to catch misunderstandings"
+  - id: 11
+    name: "After Action Review (AAR)"
+    domain: military_planning
+    description: "Post-execution structured debrief: what was supposed to happen, what happened, why the delta, what to sustain/improve"
+  - id: 12
+    name: "F2T2EA Kill Chain (Dynamic Targeting)"
+    domain: military_planning
+    description: "Find-Fix-Track-Target-Engage-Assess — six-step methodology for time-sensitive targeting; military's most operationally refined agent loop, more granular than OODA"
+  - id: 13
+    name: "Joint Targeting Cycle (JTC)"
+    domain: military_planning
+    description: "6-phase translation of strategic guidance into tactical action across domains; the Commander's Decision gate directly maps to HITL approval"
+  - id: 14
+    name: "MDO Convergence Framework"
+    domain: military_planning
+    description: "Doctrinal shift (FM 3-0, 2024-2025) from sequential to synchronized cross-domain 'convergence windows'; maps to multi-agent synchronization in DAG execution"
+  - id: 15
+    name: "FRAGO (Fragmentary Order) / Adaptive Replanning"
+    domain: military_planning
+    description: "Lightweight incremental replanning — communicates only changes, preserves what still holds; doctrinal precedent for ALAS-style local compensation"
+  - id: 16
+    name: "Thunderforge (DoD/DIU, 2025)"
+    domain: military_planning
+    description: "Active DOD program: AI agents as digital staff officers red-teaming war plans; 'human-on-the-loop' architecture (not in-the-loop)"
+
+  # ── Systemized Problem Solving (Civilian) ──
+  - id: 17
+    name: "TRIZ"
+    domain: civilian_problem_solving
+    description: "Altshuller's theory of inventive problem solving — 40 principles, contradiction matrix, patterns of technical evolution; most problems solved in another domain"
+  - id: 18
+    name: "Kepner-Tregoe Problem Analysis"
+    domain: civilian_problem_solving
+    description: "Situation Appraisal → Problem Analysis → Decision Analysis → Potential Problem Analysis; clean categorization of problems vs. decisions vs. risks"
+  - id: 19
+    name: "First Principles Thinking"
+    domain: civilian_problem_solving
+    description: "Decompose to fundamentals, rebuild from ground up; separates what a system MUST do from what it happens to do"
+  - id: 20
+    name: "Cynefin Framework (Snowden)"
+    domain: civilian_problem_solving
+    description: "Ordered (best practice) / Complicated (expert analysis) / Complex (probe-sense-respond) / Chaotic (act-sense-respond); domain determines method"
+  - id: 21
+    name: "Systems Thinking / Causal Loop Diagrams"
+    domain: civilian_problem_solving
+    description: "Feedback loops, delays, emergence, leverage points (Meadows); the problem IS the system, not the event"
+  - id: 22
+    name: "DMAIC (Six Sigma)"
+    domain: civilian_problem_solving
+    description: "Define-Measure-Analyze-Improve-Control; the 'Measure' phase has no analogue in JORDAN — no quantification of the gap before solving"
+  - id: 23
+    name: "A3 Problem Solving (Toyota)"
+    domain: civilian_problem_solving
+    description: "One-page structured thinking: background, current condition, target, root cause, countermeasures, check; compression forces clarity"
+  - id: 24
+    name: "Wardley Mapping"
+    domain: civilian_problem_solving
+    description: "Value chain mapped against evolution (genesis → custom → product → commodity); situational awareness in technology strategy"
+  - id: 25
+    name: "Pre-mortem Analysis (Klein, 2007)"
+    domain: civilian_problem_solving
+    description: "Prospective hindsight: 'Imagine we failed catastrophically — what went wrong?' Proven +30% strategy judgment accuracy; counters planning fallacy"
+  - id: 26
+    name: "Theory of Constraints Thinking Processes (Goldratt)"
+    domain: civilian_problem_solving
+    description: "Current Reality Tree → Evaporating Cloud → Future Reality Tree → Prerequisite Tree → Transition Tree; causal-logical, LLM-compatible"
+  - id: 27
+    name: "Design Thinking / Double Diamond"
+    domain: civilian_problem_solving
+    description: "Discover (divergent) → Define (convergent) → Develop (divergent) → Deliver (convergent); explicit alternation between divergent/convergent thinking"
+  - id: 28
+    name: "Reference Class Forecasting (Flyvbjerg)"
+    domain: civilian_problem_solving
+    description: "Forecast by comparing to how similar projects actually performed (outside view), not by analyzing plan details (inside view); statistically validated debiasing"
+  - id: 29
+    name: "WickedVUCA Problem Typology (2025)"
+    domain: civilian_problem_solving
+    description: "Synthesizes Wicked Problems + VUCA dimensions; classifies problems Type 0 (simple) to Type IV (highly conflicted/unpredictable); pre-execution strategy selection"
+
+  # ── Task Decomposition & Assessment ──
+  - id: 30
+    name: "Work Breakdown Structure (WBS)"
+    domain: task_decomposition
+    description: "PMI hierarchical decomposition; deliverable-oriented, 100% rule, 8-80 hour rule for leaf nodes"
+  - id: 31
+    name: "MECE Principle"
+    domain: task_decomposition
+    description: "Mutually Exclusive, Collectively Exhaustive — task boundaries must not overlap and nothing falls through cracks"
+  - id: 32
+    name: "Dependency Structure Matrix (DSM)"
+    domain: task_decomposition
+    description: "N×N interaction matrix revealing cycles, coupling clusters, optimal execution order; surfaces hidden dependencies beyond DAG representation"
+  - id: 33
+    name: "Critical Path Method (CPM)"
+    domain: task_decomposition
+    description: "Longest dependent chain = minimum completion time; free float vs. total float; parallel execution optimization"
+  - id: 34
+    name: "User Story Mapping (Patton)"
+    domain: task_decomposition
+    description: "2D backlog: horizontal = narrative flow, vertical = criticality depth; maps to walking-skeleton thinking"
+  - id: 35
+    name: "RICE / ICE Prioritization"
+    domain: task_decomposition
+    description: "Reach × Impact × Confidence / Effort; structured scoring where confidence is actually consumed as a multiplier"
+  - id: 36
+    name: "MoSCoW / Kano Analysis"
+    domain: task_decomposition
+    description: "Must/Should/Could/Won't triage; Kano adds delight vs. basic expectation classification"
+  - id: 37
+    name: "Hierarchical Task Network (HTN) Planning"
+    domain: task_decomposition
+    description: "AI planning formalism decomposing compound tasks into primitives via methods; PSPACE-complete but practically efficient; extended with LLM-guided decomposition (DELTA, 2025)"
+  - id: 38
+    name: "MVP / Incremental Delivery"
+    domain: task_decomposition
+    description: "Decompose by value-delivery increments rather than technical subsystems; maps to military 'sequels' — planned follow-on phases"
+  - id: 39
+    name: "RDD — Recursive Decomposition with Dependencies (NeurIPS 2024)"
+    domain: task_decomposition
+    description: "Scalable divide-and-conquer for LLM reasoning with sub-task dependencies and error recovery; outperforms CoT and Least-to-Most as complexity increases"
+
+  # ── AI/LLM Agent Task Planning ──
+  - id: 40
+    name: "ReAct (Yao et al., 2022)"
+    domain: ai_agent_planning
+    description: "Reasoning + Acting interleaved; Thought → Action → Observation loop; progenitor of most LLM agent architectures"
+  - id: 41
+    name: "Plan-and-Execute Architecture"
+    domain: ai_agent_planning
+    description: "Separate planning pass then stepwise execution; JORDAN's current architecture; strengths: plan quality, pre-flight review; weaknesses: rigidity, replan cost"
+  - id: 42
+    name: "Tree of Thoughts / Graph of Thoughts"
+    domain: ai_agent_planning
+    description: "Multi-path reasoning with BFS/DFS evaluation and pruning; for problems where the right path isn't obvious upfront"
+  - id: 43
+    name: "LLMCompiler"
+    domain: ai_agent_planning
+    description: "Parallel function calling with dependency tracking; computes DAG of tool calls, executes parallel subtrees, merges results"
+  - id: 44
+    name: "AutoGen (Microsoft)"
+    domain: ai_agent_planning
+    description: "Multi-agent conversation framework; agents chat to solve tasks; conversational planning vs. structured planning"
+  - id: 45
+    name: "Reflexion / Self-Refine"
+    domain: ai_agent_planning
+    description: "Self-evaluation + improvement loop; runtime critique without external red team; JORDAN's replan node is a primitive version"
+  - id: 46
+    name: "Voyager / DEPS"
+    domain: ai_agent_planning
+    description: "Describe-Explain-Plan-Select; lifelong learning agent with skill library accumulation; JORDAN has no skill accumulation — each task is amnesiac"
+  - id: 47
+    name: "THREAD — Recursive Spawning (2024-2025)"
+    domain: ai_agent_planning
+    description: "LLM generation as thread of execution that dynamically spawns child threads; +10-50% absolute improvement with smaller models; maps to military force allocation"
+  - id: 48
+    name: "Agentic Compute Criticality / Scaling Laws (2025)"
+    domain: ai_agent_planning
+    description: "Branching factor b < 1 = stable scaling, b > 1 = exponential explosion; Performance = f(Parameters, Data, Training_Compute, Inference_Depth)"
+  - id: 49
+    name: "MAKER / MDAP — Massively Decomposed Agent Processes (2025)"
+    domain: ai_agent_planning
+    description: "Proof that maximal decomposition solves 1,048,575-step Towers of Hanoi with zero errors; cost scales as Θ(s ln s)"
+  - id: 50
+    name: "MAP — Modular Agentic Planner (2025, Nature Communications)"
+    domain: ai_agent_planning
+    description: "Brain-inspired 6-module architecture (TaskDecomposer, Actor, Monitor, Predictor, Evaluator, Orchestrator) mimicking prefrontal cortex subregions"
+  - id: 51
+    name: "ALAS — Adaptive LLM Agent System (2025, Stanford)"
+    domain: ai_agent_planning
+    description: "3-layer architecture: Workflow Blueprinting → Agent Factory with compensation logic → Runtime Monitor; history-aware local compensation beats global replanning"
+  - id: 52
+    name: "Agent Interoperability Protocols (MCP, A2A, ACP, ANP; 2025)"
+    domain: ai_agent_planning
+    description: "Four competing standards for agent-to-agent and agent-to-tool communication; the protocol layer any multi-agent architecture must address"
+  - id: 53
+    name: "LangGraph — Stateful Graph Orchestration (2024-2025)"
+    domain: ai_agent_planning
+    description: "Dominant production framework: stateful cyclic graphs with checkpoint/resume, conditional routing, HITL interrupts; JORDAN's underlying framework"
+  - id: 54
+    name: "Agentic AI Safety Frameworks (OWASP, Enkrypt, NIST AI RMF; 2025)"
+    domain: ai_agent_planning
+    description: "7-layer defense architecture with 4 risk-tiers; Lies-in-the-Loop attack class (2025) compromises HITL dialogs; agent-specific risk taxonomies"
+  - id: 55
+    name: "SWE-EVO Benchmark (2025)"
+    domain: ai_agent_planning
+    description: "Long-horizon multi-file software evolution benchmark; GPT-5 + OpenHands = 21% resolution; proves multi-step decomposition remains the critical unsolved frontier"
+  - id: 56
+    name: "TAPE — Task-Adaptive Planning and Execution (2025)"
+    domain: ai_agent_planning
+    description: "Dual-process theory (System 1/2) applied to agent planning; two 0.5B models achieve +16.3% success; task complexity classification before method selection"
+
+  # ── JORDAN Current Architecture (baseline) ──
+  - id: 57
+    name: "JORDAN v1 Pipeline"
+    domain: jordan_baseline
+    description: "Plan → Research → Risk Assessment → Execute → Synthesize → (Replan); 10 files, ~12K LOC; nodes.py 4400-line monolith"
+  - id: 58
+    name: "JORDAN Approval Gate"
+    domain: jordan_baseline
+    description: "Human-in-the-loop approval with 4 independent bypass paths; risk classifier weaponizable via user input; default-to-LOW on unclassified actions"
+  - id: 59
+    name: "JORDAN Parallel Executor"
+    domain: jordan_baseline
+    description: "DAG-based subtask execution; no retry logic; shared graph/semaphore across calls; dict-order-dependent batching; second-class citizen"
+
+  # ── Direct Military-Software Analogues (Cross-Cutting) ──
+  - id: 60
+    name: "IFPV — Integrated Framework for Operational Planning & Verification (2026)"
+    domain: military_sw_analogues
+    description: "Multi-Perspective Hierarchical Agents (Pathfinder, Analyst, Planner) + Adversarial Cognitive Simulation Engine; +19.4% mission success, -41.7% cost; closest work to JORDAN's vision"
+  - id: 61
+    name: "CommandCC — Military C2 for Software Dev (2025)"
+    domain: military_sw_analogues
+    description: "4-128 AI agents using 9-phase Octopus architecture with 3-tier hierarchy (Opus/Sonnet/Haiku) mirroring military command echelons; Decomposer as force multiplier"
+
+execution:
+  batch_size: 4
+  items_per_agent: 10
+  total_items: 61
+  total_batches: 7
+  output_dir: ./results
+  domains:
+    - military_planning
+    - civilian_problem_solving
+    - task_decomposition
+    - ai_agent_planning
+    - jordan_baseline
+    - military_sw_analogues
