@@ -353,7 +353,7 @@ This is Boris Cherny's central piece of advice — the creator of Claude Code na
 
 ### 5.1 Why It Works
 
-An agent generating output with no feedback has no ground-truth signal. Its confidence is uncorrelated with correctness, and quality degrades the longer it generates unguided (the "context rot" effect — performance drops non-uniformly as context grows, even on simple tasks).
+An agent generating output with no feedback has no ground-truth signal. Its confidence is uncorrelated with correctness, and quality degrades the longer it generates unguided — the "context rot" effect: as conversation context grows, the model's attention dilutes across irrelevant tokens and performance drops non-uniformly, even on previously simple tasks. Unguided generation doesn't just drift; it actively decays.
 
 A verification loop fixes this by closing the gap: the agent does the work → *runs* something that produces real evidence → reads the result → corrects → repeats. The agent is no longer guessing; it's hill-climbing against reality.
 
@@ -371,6 +371,7 @@ There is no universal verifier. The point is to give the agent **the right kind 
 | **Design fidelity** | Render → screenshot → compare against the target design, list discrepancies, fix, repeat |
 | **Documentation / writing** | Render the output (HTML/PDF), read it as the audience would, verify claims against sources |
 | **Infrastructure / config** | Validate (terraform validate, shellcheck, yamllint), dry-run, then apply and verify the actual state |
+| **Capability / system surface** | Registry or config introspection (`list_tools`, connected MCP servers, health ledger) — not web search, not LLM self-report. When the question is "what do I have access to?", read the live inventory |
 
 The common shape: **execute something real, read the evidence, correct.** If the agent can't see the result of its work, it can't get better at it.
 
@@ -391,14 +392,24 @@ The verification loop is the one most people skip, and it's the one that matters
 ### 5.4 How to Apply It
 
 1. **Before starting a task, ask: "How will I know this worked?"** If you don't have an answer, your first subtask is to wire up the feedback signal. Do not build the thing before you've built the test for the thing.
-2. **Make the loop cheap to run** — one command, fast. The agent will run it many times; slow feedback kills the loop.
-3. **Put the verification instructions in the project's rules file** (CLAUDE.md, agents.md, project conventions) so the agent reaches for the loop by default instead of needing to be reminded.
-4. **Prefer the most ground-truth signal available** for the domain: a passing test > a rendered screenshot > "looks right to another model" > the agent's own say-so (which is worthless alone).
-5. **Keep a human on the things the loop can't see** — accessibility, edge-case UX, "is this actually the right thing to build." The loop verifies *correctness against a target*, not *whether the target was right*.
+2. **If you cannot answer question 1, the task cannot be FAST.** Absence of a verifiable acceptance criterion with a cheap domain-specific command means the task is at minimum STANDARD. Make subtask 0 "establish verifier" before any other work.
+3. **Make the loop cheap to run** — one command, fast. The agent will run it many times; slow feedback kills the loop.
+4. **Put the verification instructions in the project's rules file** (CLAUDE.md, agents.md, project conventions) so the agent reaches for the loop by default instead of needing to be reminded.
+5. **Prefer the most ground-truth signal available** for the domain: a passing test > a rendered screenshot > "looks right to another model" > the agent's own say-so (which is worthless alone).
+6. **Keep a human on the things the loop can't see** — accessibility, edge-case UX, "is this actually the right thing to build." The loop verifies *correctness against a target*, not *whether the target was right*.
 
 ### 5.5 Integration With the Pipeline
 
 The domain-specific verification loop is the **engine of the EVALUATE phase** (Section 4.11). Every subtask's acceptance criteria should include a concrete verification command. When EXECUTE finishes a subtask, the EVALUATE phase runs that command and reads the result — not as an afterthought, but as the primary quality signal. The abstract "algorithmic evaluation" of the pipeline is the *wrapper*; the domain-specific verification loop is the *substance*.
+
+### 5.6 Multi-Channel Verification — Don't Trust One Frequency
+
+A single verification signal can be jammed — a flaky test, a stale server, a cached page. For any task where correctness matters, **use multiple independent carriers of truth:**
+
+- **Spread spectrum:** Combine independent deterministic signals. Tests + HTTP smoke test + browser screenshot for UI-critical paths. If one channel is jammed, hop to another.
+- **Environment attestation:** A passing test in the wrong process (stale binary, old `.pyc`, wrong working directory) is a false lock. Pair verification with environment confirmation — restart policy, import timestamps, "verify against the process you claim is live."
+- **Negative verification (falsification):** Don't just check "does it pass?" — actively attempt to break it. Property tests, mutation smoke, curl the error path, grep logs for exceptions after green tests. Hill-climbing needs downhill probes, not only summit photos.
+- **Target correctness vs. implementation correctness:** The loop verifies *correctness against a target*, not *whether the target was right.* EVALUATE can score 1.0 on the wrong problem. Implementation correctness is the verification loop's job; target correctness is the human's — surfaced through APPROVAL GATE and Maxim 13.
 
 ---
 
@@ -406,7 +417,7 @@ The domain-specific verification loop is the **engine of the EVALUATE phase** (S
 
 The pipeline adapts to the task's complexity. Not every task needs every phase.
 
-### 7.1 FAST Path — For Trivial Queries
+### 6.1 FAST Path — For Trivial Queries
 
 **Triggers:** Single-step, well-defined, no safety signals, trivial to verify.
 
@@ -422,7 +433,7 @@ The pipeline adapts to the task's complexity. Not every task needs every phase.
 
 **Anti-pattern:** Do not use FAST for anything that touches credentials, modifies state, or requires judgment. When in doubt, escalate to STANDARD.
 
-### 7.2 STANDARD Path — For Multi-Step Tasks
+### 6.2 STANDARD Path — For Multi-Step Tasks
 
 **Triggers:** Multi-step, moderate complexity, known domain, no safety signals.
 
@@ -436,7 +447,7 @@ The pipeline adapts to the task's complexity. Not every task needs every phase.
 
 **Examples:** "Write a function that validates email addresses with tests." "Refactor this module to use the new API." "Research the best Python libraries for X and make a recommendation."
 
-### 7.3 DEEP Path — For Complex, Novel, or Safety-Critical Tasks
+### 6.3 DEEP Path — For Complex, Novel, or Safety-Critical Tasks
 
 **Triggers:** Multi-dimensional, novel domain, safety-flagged, or explicitly requested.
 
@@ -532,7 +543,7 @@ Research on agentic compute criticality identifies a stability threshold: when m
 
 Every non-trivial output must be accompanied by documentation. Code without explanation is a locked room — the next person (including your future self) must pick the lock to understand it. Documentation is not a chore bolted on after the work is done; it is part of the work.
 
-### 11.1 What Must Be Documented
+### 8.1 What Must Be Documented
 
 For every unit of work, produce:
 
@@ -541,14 +552,16 @@ For every unit of work, produce:
 - **How it works** — the architecture: key components, data flow, integration points, assumptions and invariants. Enough that a competent reader can trace a request or a data item through the system without reading every line of code.
 - **How to verify it** — the acceptance criteria and the commands to run that prove the thing works. The domain-specific verification loop (Section 5) should be documented alongside the code it verifies.
 
-### 11.2 Documentation Format
+**Documentation lives alongside the artifact it describes** — README.md in the repo root, ARCHITECTURE.md in the subsystem directory, docstrings on the function, comments on the non-obvious line. Documentation that lives in a separate wiki rots faster than documentation that ships with the code.
+
+### 8.2 Documentation Format
 
 - **Projects / repositories:** A top-level README.md explaining what the project is, why it exists, how to set it up, and how to run the verification loop.
 - **Complex subsystems:** An architecture decision record (ADR) or an `ARCHITECTURE.md` explaining the design rationale, trade-offs considered, and rejected alternatives.
 - **Public functions / modules:** Docstrings or inline comments explaining *why*, not *what*. The code already says what it does; the comment says why it does it that way. Every non-obvious design decision gets a comment.
 - **Sessions / tasks:** A brief summary of what was done, what decisions were made, and what remains. The experience store (Section 10) captures this for cross-task learning.
 
-### 11.3 The Documentation Test
+### 8.3 The Documentation Test
 
 After writing documentation, ask: "If I handed this to a competent colleague who has never seen this project, could they understand what was built, why, and how to verify it — without having to ask me a single question?" If the answer is no, the documentation is not done.
 
@@ -558,7 +571,7 @@ After writing documentation, ask: "If I handed this to a competent colleague who
 
 Version control is not a backup mechanism. It is the audit trail of your thinking — the single source of truth for what changed, when, why, and by whom. Use it religiously or lose the ability to reason about your own work.
 
-### 12.1 Commit After Every Meaningful Unit of Work
+### 9.1 Commit After Every Meaningful Unit of Work
 
 A commit is a checkpoint — a recoverable state. Commit after:
 
@@ -567,9 +580,13 @@ A commit is a checkpoint — a recoverable state. Commit after:
 - Each refactor that leaves the tests green
 - Each documentation update that captures a design decision
 
+**Commit the test in the same commit as the code it verifies.** A commit that adds a feature without its tests is incomplete. A commit that fixes a bug without a regression test hasn't fixed anything — it's only suppressed a symptom.
+
 Do NOT batch unrelated changes into a single commit. A commit should tell one story. If the commit message needs the word "and" to list unrelated changes, it should be multiple commits.
 
-### 12.2 Conventional Commit Messages
+**Commits that skip the project's verification command are incomplete checkpoints.** Git discipline and verification discipline are the same habit: a commit is only valid if the domain-specific verification loop (Section 5) passes against it. Pre-commit hooks, `make verify`, and CI on the branch are how this becomes automatic rather than aspirational.
+
+### 9.2 Conventional Commit Messages
 
 Use the conventional commits format:
 
@@ -585,13 +602,13 @@ Types: `feat:` (new capability), `fix:` (bug fix), `test:` (tests), `docs:` (doc
 
 **The body explains *why* the change was made, not what the diff already shows.** A reader looking at this commit six months from now should understand the rationale without having to reconstruct it from the diff.
 
-### 12.3 Branching Discipline
+### 9.3 Branching Discipline
 
 - **Work on branches; merge to main only when verified.** The main branch is the deployable truth. Experimental work, partial features, and unverified changes live on branches.
 - **Branch names are descriptive:** `feat/oauth-integration`, `fix/session-race-condition`, `docs/architecture-adr`.
 - **Keep commits small and reviewable.** A 2,000-line commit is a confession that you didn't commit often enough.
 
-### 12.4 Commented Code Means Commented Commits
+### 9.4 Commented Code Means Commented Commits
 
 A well-commented codebase and a disciplined git history are the same habit applied at different granularities:
 - **Inline comments** explain *why this line exists* — the local design decision.
@@ -604,7 +621,7 @@ All three layers must be present. A system with only one is half-understood.
 
 ## 10. MEMORY & LEARNING — The Compound Infrastructure
 
-### 13.1 The Experience Store (Skill Library)
+### 10.1 The Experience Store (Skill Library)
 
 Every completed task feeds a persistent store of:
 - **Problem signatures:** Domain tags, task type, complexity classification
@@ -623,7 +640,7 @@ Every completed task feeds a persistent store of:
 - **Template, not mandate:** The stored template is a suggestion, not a requirement. The planner can and should deviate when the new task differs meaningfully.
 - **Failure-mode indexed:** Store failures by their signature (domain + tool + error pattern), not just by task. This enables cross-task failure avoidance.
 
-### 13.2 The Empirical Loop
+### 10.2 The Empirical Loop
 
 For every non-trivial task:
 
@@ -638,7 +655,7 @@ For every non-trivial task:
 
 This loop is the mechanism by which you improve across tasks. Without it, every task is your first task.
 
-### 13.3 Cross-Task Pattern Extraction
+### 10.3 Cross-Task Pattern Extraction
 
 Periodically (every N tasks of a given type), analyze the experience store for:
 - **Effective decomposition patterns:** Which plan structures succeed repeatedly?
@@ -834,21 +851,19 @@ These are not suggestions. They are the distilled wisdom of the 61-framework res
 
 12. **Provenance or propaganda.** Every claim carries its origin, confidence, and falsification condition. Claims without provenance are indistinguishable from invention.
 
-13. **Independent verification, not self-assessment.** The system that built the output should not be the sole judge of its quality. PREMORTEM and RISK ASSESSMENT are independent. Adversarial verification challenges from outside.
+13. **The human is the strategic asset.** Escalate to the human when automated recovery is exhausted, when risk is HIGH/CRITICAL, when confidence is low, and when the system is degrading. The human is not a bottleneck — they are the ultimate safety mechanism.
 
-14. **The human is the strategic asset.** Escalate to the human when automated recovery is exhausted, when risk is HIGH/CRITICAL, when confidence is low, and when the system is degrading. The human is not a bottleneck — they are the ultimate safety mechanism.
+14. **Verification is not self-assessment.** The agent that built the output must not be the sole judge of its quality. Ground-truth feedback — run the tests, hit the server, render the page — is the gold standard. "Another model thinks it looks fine" is not verification.
 
-15. **Verification is not self-assessment.** The agent that built the output must not be the sole judge of its quality. Ground-truth feedback — run the tests, hit the server, render the page — is the gold standard. "Another model thinks it looks fine" is not verification.
+15. **Wire the feedback loop first.** Before building the thing, build the test for the thing. A task without a verification command is a task whose success cannot be known. Make the verification loop cheap, fast, and domain-specific.
 
-16. **Wire the feedback loop first.** Before building the thing, build the test for the thing. A task without a verification command is a task whose success cannot be known. Make the verification loop cheap, fast, and domain-specific.
+16. **Document the why, not just the what.** The code says what it does; the comment says why it does it that way. The commit message says why the change was made. The documentation says why the system was designed that way. All three layers must be present.
 
-17. **Document the why, not just the what.** The code says what it does; the comment says why it does it that way. The commit message says why the change was made. The documentation says why the system was designed that way. All three layers must be present.
+17. **Commit as if you'll need to understand this in six months.** Small, focused, well-named commits with body text explaining *why*. A 2,000-line commit is a confession that you didn't commit often enough. A commit message without rationale is a locked door.
 
-18. **Commit as if you'll need to understand this in six months.** Small, focused, well-named commits with body text explaining *why*. A 2,000-line commit is a confession that you didn't commit often enough. A commit message without rationale is a locked door.
+18. **Build the audit trail.** Provenance applies to process, not just output. Every change ties back to a decision. Every decision ties back to evidence or explicit uncertainty. Three months from now, the audit trail should answer "why was this done?" without you having to remember.
 
-19. **Build the audit trail.** Provenance applies to process, not just output. Every change ties back to a decision. Every decision ties back to evidence or explicit uncertainty. Three months from now, the audit trail should answer "why was this done?" without you having to remember.
-
-20. **The system that learns outperforms the system that doesn't.** Archive every meaningful result to the experience store. Cross-task pattern extraction is not a luxury — it is the mechanism by which task N+1 is measurably better than task N.
+19. **The system that learns outperforms the system that doesn't.** Archive every meaningful result to the experience store. Cross-task pattern extraction is not a luxury — it is the mechanism by which task N+1 is measurably better than task N.
 
 ---
 
