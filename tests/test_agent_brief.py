@@ -25,13 +25,13 @@ MODULES = ("plan", "split", "diagnose", "verify", "options", "recover", "brief")
 # The handover is read once, when the user hands it over, so this cap is not a
 # per-step cost like the kernel's. It is about whether a stock agent reads to
 # the end and still acts on the first section. Measured with `wc -c` when this
-# test was written: the file was 31,494 bytes, of which the embedded sources
-# are fixed by their own caps (kernel 2,596; the seven modules 14,720 together;
-# shared block about 1,200) and the pointer block repeats the triggers. A
-# haiku-class agent read the whole file and carried out every step at that
-# size (docs/v3/agent-brief-verification.md). The cap leaves about 1,500 bytes
-# of room, so a reworded module still fits and new wrapper prose has to earn
-# its place by replacing some.
+# test was last revised: the file was 32,178 bytes. Of that the embedded
+# sources are fixed by their own caps (kernel.md 2,596 bytes; the seven modules
+# 14,720 together; the shared block 1,191), and the pointer block repeats the
+# triggers. In the live runs a haiku-class agent read the file at 31,494 and at
+# 31,995 bytes and carried out every adoption step both times
+# (docs/v3/agent-brief-verification.md); nothing larger has been tried. The cap
+# leaves under 1,000 bytes of room, so new wrapper prose has to replace some.
 BRIEF_CAP = 33000
 
 # What must be in context on every step after adoption: kernel plus pointer

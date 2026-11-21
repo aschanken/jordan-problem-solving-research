@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "notes": [
+    "Each arm is materialised by eval/run.py into a fresh temporary HOME whose .claude/ is also CLAUDE_CONFIG_DIR. Nothing else is in that config dir.",
+    "claude_md: 'kernel' writes skills/jordan/kernel.md between the jordan-kernel markers into <config>/CLAUDE.md, as install.sh does; null writes no CLAUDE.md.",
+    "hooks: true registers every hook in hooks/hooks.json in <config>/settings.json by absolute path to this repo's hooks/, except the events in hooks_skip (the kernel already arrives through CLAUDE.md, as on the plain-copy route, RULINGS R9). JORDAN_HOME points inside the run's temp dir.",
+    "ledger_on_path: true puts a link to bin/jordan-ledger in a bin/ directory prepended to PATH. Arms without it have every PATH entry that holds a jordan-ledger removed.",
+    "skill: true copies skills/jordan/ (SKILL.md, kernel.md, modules/) to <config>/skills/jordan/."
+  ],
+  "arms": {
+    "A0": {
+      "description": "No JORDAN: no CLAUDE.md, empty settings, no hooks, no skill.",
+      "claude_md": null,
+      "hooks": false,
+      "hooks_skip": [],
+      "ledger_on_path": false,
+      "skill": false
+    },
+    "A1": {
+      "description": "Kernel only: kernel block in the config dir's CLAUDE.md.",
+      "claude_md": "kernel",
+      "hooks": false,
+      "hooks_skip": [],
+      "ledger_on_path": false,
+      "skill": false
+    },
+    "A2": {
+      "description": "A1 plus the hooks and the jordan-ledger CLI on PATH.",
+      "claude_md": "kernel",
+      "hooks": true,
+      "hooks_skip": ["SessionStart"],
+      "ledger_on_path": true,
+      "skill": false
+    },
+    "A3": {
+      "description": "A2 plus the jordan skill with its seven modules.",
+      "claude_md": "kernel",
+      "hooks": true,
+      "hooks_skip": ["SessionStart"],
+      "ledger_on_path": true,
+      "skill": true
+    }
+  }
+}

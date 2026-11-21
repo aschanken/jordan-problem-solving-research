@@ -1,0 +1,16 @@
+{
+  "name": "jordan",
+  "owner": {
+    "name": "aschanken"
+  },
+  "metadata": {
+    "description": "JORDAN V3, a problem-solving framework for AI coding agents."
+  },
+  "plugins": [
+    {
+      "name": "jordan",
+      "source": "./",
+      "description": "Kernel, modules, hooks, ledger CLI and agent base of JORDAN V3."
+    }
+  ]
+}

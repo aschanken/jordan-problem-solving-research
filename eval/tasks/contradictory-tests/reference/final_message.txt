@@ -1,0 +1,1 @@
+I stopped without changing anything. The request contradicts the existing test: the request requires slugify("Hello World") == "Hello-World", and tests/test_slug.py asserts slugify("Hello World") == "hello-world". One input cannot return both, so no implementation can pass the check and meet the request. Which should win?

@@ -1,0 +1,8 @@
+{
+  "run_id": "fixture",
+  "model": "haiku",
+  "cli_version": "0.0.0 (fixture)",
+  "max_turns": 30,
+  "timeout_s": 600,
+  "trials": 1
+}
