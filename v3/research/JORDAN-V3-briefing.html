@@ -1,0 +1,473 @@
+<title>JORDAN V3 Briefing</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a single reading column styled as a planning overlay. Three lane colors carry
+   meaning everywhere: ink = the model judges, blue = the harness enforces, amber = the human decides.
+   Red is reserved for threats and things V3 drops. */
+:root {
+  --bg: #f1f3ef; --surface: #fbfcfa; --sunk: #e6eae5;
+  --ink: #17211e; --muted: #56645f; --line: #cbd3cd;
+  --blue: #1d5fa6; --blue-soft: #dbe8f5;
+  --amber: #955c06; --amber-soft: #f6e8cc;
+  --red: #ad332b; --red-soft: #f6dedb;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111715; --surface: #19211e; --sunk: #0c110f;
+    --ink: #e5ebe7; --muted: #9aa9a2; --line: #303d37;
+    --blue: #74b0f0; --blue-soft: #16304a;
+    --amber: #e3ad55; --amber-soft: #3a2c10;
+    --red: #f0857a; --red-soft: #40201d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111715; --surface: #19211e; --sunk: #0c110f;
+  --ink: #e5ebe7; --muted: #9aa9a2; --line: #303d37;
+  --blue: #74b0f0; --blue-soft: #16304a;
+  --amber: #e3ad55; --amber-soft: #3a2c10;
+  --red: #f0857a; --red-soft: #40201d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 4rem;
+}
+.wrap { max-width: 60rem; margin: 0 auto; display: flex; flex-direction: column; gap: 4.5rem; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(2.6rem, 8vw, 4.6rem); font-weight: 700; text-transform: uppercase; }
+h2 { font-size: clamp(1.9rem, 5vw, 2.6rem); font-weight: 600; text-transform: uppercase; }
+h3 { font-size: 1.35rem; font-weight: 600; }
+p { margin: 0; }
+.lede { font-size: 1.15rem; max-width: 40rem; }
+.prose { max-width: 40rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.tag { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.note { font-size: 0.88rem; color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 1.5rem; }
+.sec-head { display: flex; flex-direction: column; gap: 0.6rem; border-top: 2px solid var(--ink); padding-top: 0.9rem; }
+
+/* hero */
+.hero { padding-top: 3.5rem; display: flex; flex-direction: column; gap: 1.4rem; }
+.hero .grid { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; }
+.bluf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 2px solid var(--ink); }
+.bluf div { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.bluf div + div { border-left: 2px solid var(--ink); }
+.bluf b { font-family: var(--display); font-size: 1.7rem; font-weight: 600; text-transform: uppercase; line-height: 1; }
+.bluf span { font-size: 0.92rem; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; font-size: 0.88rem; }
+.key { display: inline-flex; align-items: center; gap: 0.45rem; }
+.sw { width: 0.85rem; height: 0.85rem; display: inline-block; border: 2px solid var(--ink); }
+.sw.h { background: var(--blue); border-color: var(--blue); }
+.sw.u { background: var(--amber); border-color: var(--amber); }
+.sw.m { background: var(--surface); }
+
+/* numbers */
+.nums { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.num { background: var(--surface); padding: 1.3rem 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.num .fig { font-family: var(--display); font-weight: 700; font-size: clamp(2.6rem, 9vw, 4rem); line-height: 0.95; font-variant-numeric: tabular-nums; }
+.num .fig small { font-size: 0.45em; font-weight: 600; }
+.num p { font-size: 0.95rem; }
+.num .so { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+.num.threat .fig { color: var(--red); }
+.num.good .fig { color: var(--blue); }
+
+/* ranking */
+.rank { display: flex; flex-direction: column; gap: 0.5rem; counter-reset: r; }
+.rank li { list-style: none; counter-increment: r; display: grid; grid-template-columns: 2.6rem 1fr; gap: 0.9rem; align-items: start; background: var(--surface); border: 1px solid var(--line); padding: 0.85rem 1rem; }
+.rank li::before { content: counter(r); font-family: var(--display); font-weight: 700; font-size: 2.2rem; line-height: 0.9; }
+.rank li:nth-child(1) { margin-right: 0; border-left: 6px solid var(--blue); }
+.rank li:nth-child(2) { margin-right: 6%; }
+.rank li:nth-child(3) { margin-right: 12%; }
+.rank li:nth-child(4) { margin-right: 18%; }
+.rank li:nth-child(5) { margin-right: 24%; border-left: 6px solid var(--red); }
+.rank b { display: block; font-weight: 600; }
+.rank span { font-size: 0.9rem; color: var(--muted); }
+.rank em { font-style: normal; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); display: block; margin-top: 0.25rem; }
+ol.rank { margin: 0; padding: 0; }
+
+/* route */
+.route { display: flex; flex-direction: column; }
+.lanes { display: grid; grid-template-columns: 4.2rem 1fr 1fr; gap: 0 1rem; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding-bottom: 0.6rem; }
+.lanes .lh { color: var(--blue); }
+.stop { display: grid; grid-template-columns: 4.2rem 1fr 1fr; gap: 0 1rem; position: relative; }
+.stop .mk { position: relative; display: flex; justify-content: center; }
+.stop .mk::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 4px; margin-left: -2px; background: var(--ink); }
+.stop .mk i { position: relative; z-index: 1; margin-top: 0.9rem; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--bg); border: 4px solid var(--ink); display: grid; place-items: center; font-family: var(--display); font-style: normal; font-weight: 700; font-size: 1.35rem; }
+.stop .cell { padding: 0.9rem 0 1.5rem; min-width: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.stop h3 { text-transform: uppercase; }
+.stop .cell p { font-size: 0.95rem; }
+.stop ul { margin: 0; padding-left: 1.05rem; font-size: 0.93rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.stop .enf { background: var(--blue-soft); border-left: 4px solid var(--blue); padding: 0.9rem 0.9rem 1rem; margin: 0.6rem 0 0.9rem; }
+.stop .enf .tag { color: var(--blue); }
+.stop .enf.none { background: none; border-left: 4px dotted var(--line); }
+.stop .enf.none .tag { color: var(--muted); }
+.post { display: grid; grid-template-columns: 4.2rem 1fr; gap: 0 1rem; }
+.post .mk { position: relative; display: flex; justify-content: center; }
+.post .mk::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 4px; margin-left: -2px; background: var(--ink); }
+.post .mk i { position: relative; z-index: 1; align-self: center; width: 1.7rem; height: 1.7rem; background: var(--amber); transform: rotate(45deg); border: 3px solid var(--bg); }
+.post .body { background: var(--amber-soft); border: 2px solid var(--amber); padding: 0.7rem 1rem; margin: 0.3rem 0; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.post .body .tag { color: var(--amber); }
+.post .body p { font-size: 0.95rem; }
+.fork { display: grid; grid-template-columns: 4.2rem 1fr; gap: 0 1rem; }
+.fork .mk { position: relative; }
+.fork .mk::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 4px; margin-left: -2px; background: var(--ink); }
+.fork .opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; padding: 0.4rem 0 1.4rem; }
+.fork .opt { border: 1px solid var(--line); border-top: 4px solid var(--ink); background: var(--surface); padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.fork .opt b { font-family: var(--display); font-size: 1.15rem; text-transform: uppercase; font-weight: 600; line-height: 1.1; }
+.fork .opt p { font-size: 0.9rem; }
+.fork .opt.bad { border-top-color: var(--red); }
+.end { display: grid; grid-template-columns: 4.2rem 1fr; gap: 0 1rem; align-items: center; }
+.end .mk { display: flex; justify-content: center; }
+.end .mk i { width: 2.6rem; height: 2.6rem; background: var(--ink); border-radius: 50%; display: block; }
+.end p { font-family: var(--display); font-size: 1.5rem; text-transform: uppercase; font-weight: 600; }
+
+/* figures */
+figure { margin: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 40rem; }
+svg { max-width: 100%; height: auto; display: block; color: var(--ink); }
+svg text { font-family: var(--body); fill: currentColor; }
+.two { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.2rem; }
+.panel { background: var(--surface); border: 1px solid var(--line); padding: 1.1rem; display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+.panel .big { font-family: var(--display); font-weight: 700; font-size: 2.4rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.panel.neg .big { color: var(--red); }
+.panel.pos .big { color: var(--blue); }
+.loopgrid { display: grid; grid-template-columns: minmax(0, 22rem) 1fr; gap: 1.5rem; align-items: center; }
+
+/* before / after */
+.swap { display: flex; flex-direction: column; border: 1px solid var(--line); background: var(--line); gap: 1px; }
+.row { display: grid; grid-template-columns: 1fr 2rem 1fr; background: var(--surface); align-items: stretch; }
+.row > div { padding: 0.85rem 1rem; min-width: 0; font-size: 0.95rem; }
+.row .was { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--red); text-decoration-thickness: 1.5px; }
+.row .arr { padding: 0; display: grid; place-items: center; font-family: var(--mono); color: var(--muted); }
+.row .now { font-weight: 500; }
+.row.head > div { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-decoration: none; font-weight: 400; background: var(--sunk); }
+
+/* ladder */
+.ladder { display: flex; flex-direction: column; gap: 0.4rem; }
+.rung { display: grid; grid-template-columns: 1fr; padding: 0.8rem 1rem; border: 1px solid var(--line); background: var(--surface); }
+.rung b { font-weight: 600; }
+.rung span { font-size: 0.9rem; color: var(--muted); }
+.rung:nth-child(1) { width: 100%; border-left: 6px solid var(--blue); }
+.rung:nth-child(2) { width: 88%; }
+.rung:nth-child(3) { width: 76%; }
+.rung:nth-child(4) { width: 64%; border-left: 6px solid var(--red); }
+
+/* safety nest */
+.nest { border: 2px solid var(--blue); padding: 0.9rem; display: flex; flex-direction: column; gap: 0.7rem; background: var(--surface); }
+.nest .nest { border-width: 1.5px; background: transparent; }
+.nest > .lab { display: flex; flex-direction: column; gap: 0.1rem; }
+.nest > .lab b { font-family: var(--display); text-transform: uppercase; font-size: 1.15rem; font-weight: 600; }
+.nest > .lab span { font-size: 0.9rem; color: var(--muted); }
+.core { border: 2px solid var(--ink); padding: 0.8rem 0.9rem; font-size: 0.95rem; background: var(--bg); }
+
+/* build order */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); counter-reset: s; }
+.steps div { background: var(--surface); padding: 1rem; counter-increment: s; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.steps div::before { content: counter(s); font-family: var(--display); font-weight: 700; font-size: 2rem; line-height: 1; color: var(--blue); }
+.steps b { font-weight: 600; }
+.steps span { font-size: 0.9rem; color: var(--muted); }
+
+.trust { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; }
+.trust div { border-top: 3px solid var(--ink); padding-top: 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.93rem; min-width: 0; }
+.trust b { font-family: var(--display); font-size: 1.2rem; text-transform: uppercase; font-weight: 600; }
+a { color: var(--blue); }
+a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  .bluf, .nums, .two, .steps, .trust, .loopgrid { grid-template-columns: 1fr; }
+  .bluf div + div { border-left: 0; border-top: 2px solid var(--ink); }
+  .lanes { display: none; }
+  .stop { grid-template-columns: 3.2rem 1fr; }
+  .stop .mk { grid-row: span 2; }
+  .stop .cell { padding-bottom: 0.2rem; }
+  .stop .enf { margin: 0.4rem 0 1.3rem; }
+  .post, .fork, .end { grid-template-columns: 3.2rem 1fr; }
+  .fork .opts { grid-template-columns: 1fr; }
+  .rank li:nth-child(n) { margin-right: 0; }
+  .rung:nth-child(n) { width: 100%; }
+  .row { grid-template-columns: 1fr; }
+  .row .arr { display: none; }
+  .row .was { padding-bottom: 0.1rem; }
+  .row .now { padding-top: 0.2rem; }
+  .row.head { display: none; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="grid"><span>JORDAN WORKFLOW</span><span>RESEARCH BRIEFING</span><span>21 NOV 2026</span><span>BASIS: 7 RESEARCH LANES</span></div>
+  <h1>JORDAN V3 Briefing</h1>
+  <p class="lede">JORDAN turns planning doctrine and problem-solving methods into a workflow for AI coding agents. This page shows what new research says about version 2, and the shape it proposes for version 3.</p>
+  <div class="bluf">
+    <div><b>Verify in code</b><span>Checks the agent cannot edit, enforced by hooks, decide when work is done.</span></div>
+    <div><b>Say less in prompts</b><span>A small plain kernel. Process that a hook can enforce leaves the prompt.</span></div>
+    <div><b>Measure everything</b><span>No phase stays unless a test against a plain agent shows it earns its cost.</span></div>
+  </div>
+  <p class="note">The workflow below is the shape the research proposes. The V3 design thread makes the final design. Figures come from the research report, which names the source for each.</p>
+</header>
+
+<section>
+  <div class="sec-head"><span class="tag">The situation</span><h2>Four numbers that reshape the design</h2></div>
+  <div class="nums">
+    <div class="num">
+      <div class="fig">1.8 <small>points</small></div>
+      <p>The gap between a full coding harness and a 100-line agent, using the same models on 447 tasks. Cost per task differed by up to 3 times. Elaborate process mostly bought tokens.</p>
+      <span class="so">One 2026 study, read by the research lane</span>
+    </div>
+    <div class="num threat">
+      <div class="fig">20 <small>of 48</small></div>
+      <p>Audited parts of a library left hollow while the agent's tests scored 221 or 222 out of 222. Agents build to the check they can see, and prompt warnings did not stop it.</p>
+      <span class="so">One 2026 study, one task</span>
+    </div>
+    <div class="num threat">
+      <div class="fig">93<small>%</small></div>
+      <p>Permission prompts that users accept. A human gate that almost always says yes protects very little, so approval belongs on the few actions that cannot be undone.</p>
+      <span class="so">Vendor-reported</span>
+    </div>
+    <div class="num good">
+      <div class="fig">0.9+</div>
+      <p>Diagnosis accuracy when each candidate cause's prediction was written down (0.88 to 1.00). Without that step it was 0.51 to 0.74. Agents fix more often than they understand.</p>
+      <span class="so">One 2026 study, not a coding task</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">What moves outcomes</span><h2>Where effort pays, strongest first</h2>
+  <p class="prose">The July review ranked harness over routing over isolation over prompt. The new evidence keeps the spirit and corrects the order. This is a ranking by strength of evidence. The steps are not drawn to a measured scale.</p></div>
+  <ol class="rank">
+    <li><div><b>Checks and loss prevention in the harness</b><span>Protected tests, an exit for impossible tasks, recovery when a run is cut off.</span><em>v2 called this "harness enforcement" and ranked it first. Still first.</em></div></li>
+    <li><div><b>Which model does the core work</b><span>Model generation changes capability far more than any scaffold.</span><em>New to the ranking.</em></div></li>
+    <li><div><b>Context discipline</b><span>A small always-on file and focused context. Isolation for parallel breadth.</span><em>v2 ranked isolation third. Holds.</em></div></li>
+    <li><div><b>Routing work to cheaper models</b><span>Saves money. Its effect on quality is small and only vendor-measured.</span><em>v2 ranked this second. Moves down.</em></div></li>
+    <li><div><b>Process written into prompts</b><span>Phases, personas, planning prose, self-review. Paid for again on every step.</span><em>Includes elaborate harness process, which v2 counted under rank one.</em></div></li>
+  </ol>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">The proposed workflow</span><h2>One route, two lanes, three human posts</h2>
+  <p class="prose">Follow the line down. At each stop the model uses judgment, and the harness enforces whatever a script can check. The person appears at three posts only.</p>
+  <div class="legend">
+    <span class="key"><span class="sw m"></span>The model judges</span>
+    <span class="key"><span class="sw h"></span>The harness enforces in code</span>
+    <span class="key"><span class="sw u"></span>The person decides</span>
+  </div></div>
+
+  <div class="route">
+    <div class="lanes"><span></span><span>The model judges</span><span class="lh">The harness enforces</span></div>
+
+    <div class="stop">
+      <div class="mk"><i>1</i></div>
+      <div class="cell"><h3>Take the intent</h3><p>Ask questions only when the request is underspecified, in one batch, with a proposed default for each. Write down the request and one other way to read it.</p></div>
+      <div class="cell"><div class="enf none"><span class="tag">Nothing to enforce yet</span></div></div>
+    </div>
+
+    <div class="post"><div class="mk"><i></i></div><div class="body"><span class="tag">Human post 1</span><p><b>Sign off the intent and what "done" means.</b> The cheapest place to correct a wrong direction.</p></div></div>
+
+    <div class="stop">
+      <div class="mk"><i>2</i></div>
+      <div class="cell"><h3>Size it up</h3><p>Fast, standard or deep. Two extra questions: is there a quick check that can be trusted, and does the task mix untrusted input, sensitive access and outside effects?</p></div>
+      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>A preflight refuses to start outside a sandbox when credentials are exposed.</li><li>A role that holds all three risky properties is refused.</li></ul></div></div>
+    </div>
+
+    <div class="stop">
+      <div class="mk"><i>3</i></div>
+      <div class="cell"><h3>Wire the check first</h3><p>Decide how success will be shown before any work: which kind of check fits, and who writes it. Treat a fix suggested in the request as a guess. If the task is impossible or contradicts itself, say so and stop.</p></div>
+      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>Existing tests and acceptance commands become read-only to the builder.</li><li>Edits that delete tests, add skips or loosen thresholds are rejected.</li></ul></div></div>
+    </div>
+
+    <div class="stop">
+      <div class="mk"><i>4</i></div>
+      <div class="cell"><h3>Plan the next wave only</h3><p>List the acceptance checks, a thin end-to-end slice to build first, and the assumptions the plan rests on. Name the one observation that would prove the plan's premise wrong. Later waves stay as one-line milestones.</p></div>
+      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>The plan file must contain its checks, owners and assumptions.</li><li>Each assumption needs a command that tests it, or it is logged as a named risk.</li></ul></div></div>
+    </div>
+
+    <div class="stop">
+      <div class="mk"><i>5</i></div>
+      <div class="cell"><h3>Try it, in a tight loop</h3><p>Attempt the whole unit against its check. Act, run the check, read the real output, correct. Split the work only when the check fails. Fan out to other agents only for independent, read-heavy work.</p></div>
+      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>A worker restates its task before its first edit, and the restatement is compared with the brief.</li><li>Budgets for cost, time and tool calls. A repeated identical call is caught.</li><li>Deletes, credential reads and unknown package installs are blocked.</li></ul></div></div>
+    </div>
+
+    <div class="fork">
+      <div class="mk"></div>
+      <div class="opts">
+        <div class="opt"><span class="tag">If a planned trigger appears</span><b>Run the branch</b><p>The plan already said what to do. No new planning.</p></div>
+        <div class="opt"><span class="tag">If something unforeseen happens</span><b>Adjust once</b><p>Diagnose with written predictions, form one workable option, continue.</p></div>
+        <div class="opt bad"><span class="tag">If the premise is wrong</span><b>Abandon and re-size</b><p>Stop patching. Say what the evidence shows and return to stop 2.</p></div>
+      </div>
+    </div>
+
+    <div class="post"><div class="mk"><i></i></div><div class="body"><span class="tag">Human post 2, only when needed</span><p><b>Approve an action that cannot be undone.</b> Pushing to the main branch, deleting outside the workspace, changing infrastructure, spending, sending anything outside.</p></div></div>
+
+    <div class="stop">
+      <div class="mk"><i>6</i></div>
+      <div class="cell"><h3>Independent review</h3><p>A reviewer in a fresh context writes what it expects from the specification alone, then reads the change. Its verdict must quote a command it ran. Opinions without a command are discarded.</p></div>
+      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>The reviewer has read-only tools.</li><li>Its verdict has a fixed form: refuted, not refuted, or cannot verify.</li></ul></div></div>
+    </div>
+
+    <div class="stop">
+      <div class="mk"><i>7</i></div>
+      <div class="cell"><h3>Prove it is done</h3><p>Report two things separately: the task finished, and the outcome the person wanted is met. State what kind of evidence each claim rests on.</p></div>
+      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>The session cannot end as "done" until the evidence commands re-run and pass.</li><li>A bug fix needs a recorded failing run before the fix and a passing run after.</li></ul></div></div>
+    </div>
+
+    <div class="post"><div class="mk"><i></i></div><div class="body"><span class="tag">Human post 3</span><p><b>Review the package.</b> Purpose, commands run with their output, risk level, decisions made, and a recommendation.</p></div></div>
+
+    <div class="stop">
+      <div class="mk"><i>8</i></div>
+      <div class="cell"><h3>Learn in code</h3><p>Ask what was expected, what happened, and why they differ. Then name the file, hook or test that will change, and the check that shows the change worked.</p></div>
+      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>A lesson that names no file, hook or test is not filed.</li><li>The check that should have caught the problem is added as a test.</li></ul></div></div>
+    </div>
+
+    <div class="end"><div class="mk"><i></i></div><p>Done, with evidence</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">Inside stop 5</span><h2>The loop, and the diagnosis that guards it</h2></div>
+  <div class="loopgrid">
+    <figure>
+      <svg viewBox="0 0 340 300" role="img" aria-label="The execution loop: act, run the check, read the output, correct, and repeat. A failed check leads to diagnosis before any second fix.">
+        <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="currentColor"/></marker></defs>
+        <g fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M205 62 A 88 88 0 0 1 258 150" marker-end="url(#ah)"/>
+          <path d="M258 172 A 88 88 0 0 1 205 250" marker-end="url(#ah)"/>
+          <path d="M135 250 A 88 88 0 0 1 82 172" marker-end="url(#ah)"/>
+          <path d="M82 150 A 88 88 0 0 1 135 62" marker-end="url(#ah)"/>
+        </g>
+        <g font-size="14" font-weight="600" text-anchor="middle">
+          <text x="170" y="50">Act</text>
+          <text x="282" y="166">Run the check</text>
+          <text x="170" y="272">Read the real output</text>
+          <text x="58" y="166">Correct</text>
+        </g>
+        <text x="170" y="150" font-size="12" text-anchor="middle" opacity="0.75">Never repeat a failed</text>
+        <text x="170" y="167" font-size="12" text-anchor="middle" opacity="0.75">action unchanged</text>
+      </svg>
+      <figcaption>The tight loop from version 2 stays. It is the best-supported part of the kernel.</figcaption>
+    </figure>
+    <div class="prose">
+      <h3>When the check fails, diagnose before fixing again</h3>
+      <p>Version 2 gave diagnosis one line. The research found agents repair a fault more often than they identify it, so version 3 gives it a short written procedure:</p>
+      <p><b>1.</b> Reproduce the failure and paste the output.<br><b>2.</b> Find a similar case that passes.<br><b>3.</b> List candidate causes, and for each one write what it predicts that the others do not.<br><b>4.</b> Run the test where the predictions differ.<br><b>5.</b> Confirm the cause both ways: remove it and the fault goes, force it and the fault returns.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">More agents is a choice</span><h2>Fan out for breadth, not for chains</h2>
+  <p class="prose">A controlled 2025 study compared agent team shapes at equal token budgets. It had no coding benchmark, so read it as direction. Most coding work is the left-hand kind.</p></div>
+  <div class="two">
+    <div class="panel neg">
+      <span class="tag">Dependent steps, one after another</span>
+      <svg viewBox="0 0 300 120" role="img" aria-label="A chain of four dependent steps handed between agents, with an error carried forward at each handoff.">
+        <defs><marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+        <g fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="6" y="40" width="54" height="40"/><rect x="84" y="40" width="54" height="40"/><rect x="162" y="40" width="54" height="40"/><rect x="240" y="40" width="54" height="40"/>
+          <line x1="60" y1="60" x2="80" y2="60" marker-end="url(#a2)"/><line x1="138" y1="60" x2="158" y2="60" marker-end="url(#a2)"/><line x1="216" y1="60" x2="236" y2="60" marker-end="url(#a2)"/>
+        </g>
+        <g font-size="12" text-anchor="middle"><text x="33" y="64">A</text><text x="111" y="64">B</text><text x="189" y="64">C</text><text x="267" y="64">D</text></g>
+        <text x="150" y="104" font-size="12" text-anchor="middle" opacity="0.75">each handoff loses decisions the last agent made</text>
+        <text x="150" y="24" font-size="12" text-anchor="middle" opacity="0.75">four agents, four handoffs</text>
+      </svg>
+      <div class="big">39 to 70% worse</div>
+      <p>Every multi-agent shape tested did worse than one agent on sequential planning. Keep a dependent chain in one thread.</p>
+    </div>
+    <div class="panel pos">
+      <span class="tag">Independent pieces, checked centrally</span>
+      <svg viewBox="0 0 300 120" role="img" aria-label="A lead fans work out to three independent readers and checks every result before merging.">
+        <defs><marker id="a3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+        <g fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="8" y="42" width="62" height="36"/>
+          <rect x="124" y="6" width="54" height="28"/><rect x="124" y="46" width="54" height="28"/><rect x="124" y="86" width="54" height="28"/>
+          <rect x="230" y="42" width="62" height="36"/>
+          <line x1="70" y1="52" x2="120" y2="22" marker-end="url(#a3)"/><line x1="70" y1="60" x2="120" y2="60" marker-end="url(#a3)"/><line x1="70" y1="68" x2="120" y2="98" marker-end="url(#a3)"/>
+          <line x1="178" y1="20" x2="226" y2="50" marker-end="url(#a3)"/><line x1="178" y1="60" x2="226" y2="60" marker-end="url(#a3)"/><line x1="178" y1="100" x2="226" y2="70" marker-end="url(#a3)"/>
+        </g>
+        <g font-size="12" text-anchor="middle"><text x="39" y="64">Lead</text><text x="151" y="24">read</text><text x="151" y="64">read</text><text x="151" y="104">read</text><text x="261" y="64">Check</text></g>
+      </svg>
+      <div class="big">80.8% better</div>
+      <p>A central coordinator on a task that splits cleanly. Unchecked merging multiplied errors 17.2 times, against 4.4 times with a central check.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">Version 2 to version 3</span><h2>What changes</h2></div>
+  <div class="swap">
+    <div class="row head"><div>Version 2</div><div class="arr"></div><div>Version 3 proposal</div></div>
+    <div class="row"><div class="was">Twelve phases described in a prompt and marked mandatory</div><div class="arr">→</div><div class="now">A small plain kernel, with gates a script can check moved into hooks</div></div>
+    <div class="row"><div class="was">Plan the whole task as a dependency graph up front</div><div class="arr">→</div><div class="now">Try first, split on failure, plan the next wave in detail</div></div>
+    <div class="row"><div class="was">Three competing plans for every deep task</div><div class="arr">→</div><div class="now">One plan and a flaw check. Alternatives only on a trigger, built in separate contexts</div></div>
+    <div class="row"><div class="was">Every deep task goes to a human for approval</div><div class="arr">→</div><div class="now">The human at three posts: intent, irreversible actions, final review</div></div>
+    <div class="row"><div class="was">"Backbrief" meant the planner checking its own plan</div><div class="arr">→</div><div class="now">A true confirmation brief: the receiver restates the task before starting</div></div>
+    <div class="row"><div class="was">A reviewer reads the change and judges it</div><div class="arr">→</div><div class="now">The reviewer forms expectations first and backs its verdict with a command</div></div>
+    <div class="row"><div class="was">"Name two candidate causes"</div><div class="arr">→</div><div class="now">A diagnosis log with a prediction for each cause</div></div>
+    <div class="row"><div class="was">Replanning is one escalation ladder</div><div class="arr">→</div><div class="now">Run a planned branch, adjust once, or abandon the premise</div></div>
+    <div class="row"><div class="was">Lessons stored as prose</div><div class="arr">→</div><div class="now">Each lesson becomes a hook, a test or a rule</div></div>
+    <div class="row"><div class="was">The "45% rule" as a limit on orchestration overhead</div><div class="arr">→</div><div class="now">Corrected: it is the success rate above which adding agents stops helping</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">How strong is the proof</span><h2>The evidence ladder for "done"</h2>
+  <p class="prose">Every completion report says which rung it stands on, and whether the builder could have edited the check.</p></div>
+  <div class="ladder">
+    <div class="rung"><b>Something ran and the result is quoted</b><span>A test, a command, a rendered screen. Stronger when the builder did not write the check.</span></div>
+    <div class="rung"><b>A reviewer from a different model family, or a stronger model</b><span>Fewer shared blind spots.</span></div>
+    <div class="rung"><b>A fresh-context reviewer from the same family</b><span>Removes context contamination, keeps the shared blind spots.</span></div>
+    <div class="rung"><b>The builder's own say-so</b><span>Worth nothing alone.</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">Running with prompts switched off</span><h2>Safety comes from layers around the agent</h2>
+  <p class="prose">The operator runs agents without permission prompts. That is defensible only when what the agent cannot reach is set by its surroundings.</p></div>
+  <div class="nest">
+    <div class="lab"><b>Boundary</b><span>A sandbox limited to the working folder, an allowlist for outside connections, short-lived credentials, backups the agent cannot touch.</span></div>
+    <div class="nest">
+      <div class="lab"><b>Hard blocks</b><span>Scripts that refuse risky deletes, credential reads, forced pushes, unknown packages, and edits to tests or to the hooks themselves.</span></div>
+      <div class="nest">
+        <div class="lab"><b>Role limits</b><span>No single agent may read untrusted content, hold sensitive access and act on the outside world all at once.</span></div>
+        <div class="nest">
+          <div class="lab"><b>Undo</b><span>A separate working copy per task, checkpoints, dry runs, and a human signature for the few actions with no undo.</span></div>
+          <div class="core"><b>The agent</b>, working under budgets for cost, time and tool calls, with every tool call written to a trace.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">Build order</span><h2>Six things first</h2>
+  <p class="prose">The first and second were the top priorities of the July review and are still open.</p></div>
+  <div class="steps">
+    <div><b>A test suite for JORDAN itself</b><span>30 to 50 of your own past tasks, four setups from a plain agent to the full workflow, at least three runs each.</span></div>
+    <div><b>A stop hook for "done"</b><span>No completion without evidence that re-runs and passes.</span></div>
+    <div><b>Protected checks</b><span>Read-only tests, no weakening of gates, a failing run before every fix.</span></div>
+    <div><b>An exit for impossible tasks</b><span>Saying "this cannot be done as asked" becomes a good outcome.</span></div>
+    <div><b>One short operating file</b><span>Plain sentences, one model of how work runs, only what the agent cannot work out itself.</span></div>
+    <div><b>Checkable gates into hooks</b><span>Anything a script can decide stops being a request in a prompt.</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">How far to trust this</span><h2>What the research did and did not check</h2></div>
+  <div class="trust">
+    <div><b>Read at the source</b><p>The agent studies, vendor engineering posts, Claude Code documentation and several Army articles were opened and read during the research.</p></div>
+    <div><b>Recalled, not re-read</b><p>Most military doctrine definitions and the classic texts come from model memory. A shared page-reading budget ran out. Check them before quoting.</p></div>
+    <div><b>Not tested anywhere</b><p>No study has measured premortems, confirmation briefs or intent statements on coding agents. The test suite is how JORDAN finds out.</p></div>
+  </div>
+  <p class="note">Full report with every source: <a href="https://github.com/aschanken/jordan-problem-solving-research/pull/1">pull request 1 in the JORDAN repository</a>, file <span style="font-family:var(--mono)">v3/research/JORDAN-V3-research-report.md</span>.</p>
+</section>
+
+</div>
