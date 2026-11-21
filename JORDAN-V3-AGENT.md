@@ -96,7 +96,7 @@ A rule you read once is gone at the next session, and may fade within a long one
 
 4. If you saved the procedures somewhere other than `.jordan/procedures.md`, correct the path in the pointer block you wrote. If your harness does have the JORDAN hooks, delete the pointer block's last paragraph, which says it does not.
 
-5. Check the write: search the instruction file for the line `# JORDAN kernel v3` and for each of the four marker lines, and confirm each occurs once.
+5. Check the write: search the instruction file for the line `# JORDAN kernel v3` and for each of the four marker lines, and confirm each occurs once. That shows the file is written, not that your harness loads it. If you can see the kernel heading in a later session without opening the file, it loads; if you cannot, tell the user.
 
 If your harness has no always-loaded file, or you cannot write files, keep the kernel in your working context for this session and tell the user that it will not carry over to the next one unless they paste it again or add it to their system prompt.
 
