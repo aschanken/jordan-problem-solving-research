@@ -119,11 +119,37 @@ ol.rank { margin: 0; padding: 0; }
 .fork { display: grid; grid-template-columns: 4.2rem 1fr; gap: 0 1rem; }
 .fork .mk { position: relative; }
 .fork .mk::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 4px; margin-left: -2px; background: var(--ink); }
-.fork .opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; padding: 0.4rem 0 1.4rem; }
+.fork .opts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; padding: 0.4rem 0 1.4rem; }
 .fork .opt { border: 1px solid var(--line); border-top: 4px solid var(--ink); background: var(--surface); padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 .fork .opt b { font-family: var(--display); font-size: 1.15rem; text-transform: uppercase; font-weight: 600; line-height: 1.1; }
 .fork .opt p { font-size: 0.9rem; }
 .fork .opt.bad { border-top-color: var(--red); }
+.fork .opt.good { border-top-color: var(--blue); }
+.mods { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.35rem; }
+.mod { border: 1.5px dashed var(--muted); padding: 0.35rem 0.6rem; font-size: 0.86rem; color: var(--muted); display: flex; gap: 0.6rem; align-items: baseline; }
+.mod b { font-family: var(--mono); font-weight: 500; color: var(--ink); flex: none; }
+.sw.d { background: none; border: 1.5px dashed var(--muted); }
+.post .guard { font-size: 0.88rem; margin-top: 0.35rem; }
+.layers { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.2rem; }
+.layer { display: grid; grid-template-columns: 4rem 1fr 9rem; gap: 0 1rem; align-items: center; background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--ink); padding: 0.8rem 1rem; }
+.layer.code { border-left-color: var(--blue); background: var(--blue-soft); }
+.layer .n { font-family: var(--display); font-weight: 700; font-size: 3rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.layer.code .n { color: var(--blue); }
+.layer > div:nth-child(2) { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.layer b { font-family: var(--display); font-size: 1.3rem; text-transform: uppercase; font-weight: 600; }
+.layer span { font-size: 0.92rem; color: var(--muted); }
+.layer em { font-family: var(--mono); font-style: normal; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-align: right; }
+.roles { display: flex; flex-direction: column; gap: 0.6rem; }
+.roles div { border-left: 4px solid var(--ink); padding-left: 0.8rem; display: flex; flex-direction: column; }
+.roles b { font-family: var(--display); font-size: 1.2rem; text-transform: uppercase; font-weight: 600; }
+.roles span { font-size: 0.92rem; color: var(--muted); }
+.arms { display: flex; flex-direction: column; gap: 0.4rem; }
+.arms div { display: flex; gap: 0.3rem; align-items: stretch; }
+.arms i { font-family: var(--mono); font-style: normal; font-size: 0.8rem; width: 2rem; flex: none; align-self: center; color: var(--muted); }
+.arms span { font-size: 0.82rem; padding: 0.4rem 0.55rem; border: 1.5px solid var(--ink); white-space: nowrap; }
+.arms .b0 { color: var(--muted); border-color: var(--line); }
+.arms .b2 { border-color: var(--blue); background: var(--blue-soft); }
+.arms .b3 { border-style: dashed; }
 .end { display: grid; grid-template-columns: 4.2rem 1fr; gap: 0 1rem; align-items: center; }
 .end .mk { display: flex; justify-content: center; }
 .end .mk i { width: 2.6rem; height: 2.6rem; background: var(--ink); border-radius: 50%; display: block; }
@@ -192,6 +218,11 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .post, .fork, .end { grid-template-columns: 3.2rem 1fr; }
   .fork .opts { grid-template-columns: 1fr; }
   .rank li:nth-child(n) { margin-right: 0; }
+  .layer { grid-template-columns: 3rem 1fr; }
+  .layer em { grid-column: 2; text-align: left; margin-top: 0.3rem; }
+  .layer .n { font-size: 2.4rem; }
+  .mod { flex-direction: column; gap: 0; }
+  .arms div { flex-wrap: wrap; }
   .rung:nth-child(n) { width: 100%; }
   .row { grid-template-columns: 1fr; }
   .row .arr { display: none; }
@@ -204,15 +235,15 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 <div class="wrap">
 
 <header class="hero">
-  <div class="grid"><span>JORDAN WORKFLOW</span><span>RESEARCH BRIEFING</span><span>21 NOV 2026</span><span>BASIS: 7 RESEARCH LANES</span></div>
+  <div class="grid"><span>JORDAN WORKFLOW</span><span>RESEARCH BRIEFING</span><span>21 NOV 2026</span><span>DESIGN SETTLED, BUILD IN PROGRESS</span></div>
   <h1>JORDAN V3 Briefing</h1>
-  <p class="lede">JORDAN turns planning doctrine and problem-solving methods into a workflow for AI coding agents. This page shows what new research says about version 2, and the shape it proposes for version 3.</p>
+  <p class="lede">JORDAN turns planning doctrine and problem-solving methods into a workflow for AI coding agents. This page shows what new research says about version 2, and the design of version 3 that came out of it.</p>
   <div class="bluf">
     <div><b>Verify in code</b><span>Checks the agent cannot edit, enforced by hooks, decide when work is done.</span></div>
     <div><b>Say less in prompts</b><span>A small plain kernel. Process that a hook can enforce leaves the prompt.</span></div>
     <div><b>Measure everything</b><span>No phase stays unless a test against a plain agent shows it earns its cost.</span></div>
   </div>
-  <p class="note">The workflow below is the shape the research proposes. The V3 design thread makes the final design. Figures come from the research report, which names the source for each.</p>
+  <p class="note">The workflow below is the settled version 3 design, now being built. Details may still move during the build. Figures come from the research report, which names the source for each.</p>
 </header>
 
 <section>
@@ -254,86 +285,103 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 </section>
 
 <section>
-  <div class="sec-head"><span class="tag">The proposed workflow</span><h2>One route, two lanes, three human posts</h2>
-  <p class="prose">Follow the line down. At each stop the model uses judgment, and the harness enforces whatever a script can check. The person appears at three posts only.</p>
+  <div class="sec-head"><span class="tag">The version 3 workflow</span><h2>One route, nine rules, one human post</h2>
+  <p class="prose">Follow the line down. The kernel is nine short rules the agent always carries. Hooks enforce what a script can check. Seven modules stay on the shelf until a trigger calls for one. The person is asked only before an action that cannot be undone.</p>
   <div class="legend">
-    <span class="key"><span class="sw m"></span>The model judges</span>
-    <span class="key"><span class="sw h"></span>The harness enforces in code</span>
+    <span class="key"><span class="sw m"></span>Kernel rule, the model judges</span>
+    <span class="key"><span class="sw h"></span>Hook, enforced in code</span>
+    <span class="key"><span class="sw d"></span>Module, loaded on a trigger</span>
     <span class="key"><span class="sw u"></span>The person decides</span>
   </div></div>
 
   <div class="route">
-    <div class="lanes"><span></span><span>The model judges</span><span class="lh">The harness enforces</span></div>
+    <div class="lanes"><span></span><span>Kernel rule</span><span class="lh">Enforced in code</span></div>
 
     <div class="stop">
       <div class="mk"><i>1</i></div>
-      <div class="cell"><h3>Take the intent</h3><p>Ask questions only when the request is underspecified, in one batch, with a proposed default for each. Write down the request and one other way to read it.</p></div>
-      <div class="cell"><div class="enf none"><span class="tag">Nothing to enforce yet</span></div></div>
+      <div class="cell"><span class="tag">Rule 1</span><h3>Size the task</h3><p>One sentence: fast (one step, easy to undo), standard (several steps) or deep (hard to undo). Unsure whether it can be undone, pick the higher. Unsure only how hard it is, pick the lower and move up at the first surprise.</p></div>
+      <div class="cell"><div class="enf"><span class="tag">Session start</span><ul><li>The kernel is placed in the agent's context when the session opens, so the rules are present without being asked for.</li></ul></div></div>
     </div>
-
-    <div class="post"><div class="mk"><i></i></div><div class="body"><span class="tag">Human post 1</span><p><b>Sign off the intent and what "done" means.</b> The cheapest place to correct a wrong direction.</p></div></div>
 
     <div class="stop">
       <div class="mk"><i>2</i></div>
-      <div class="cell"><h3>Size it up</h3><p>Fast, standard or deep. Two extra questions: is there a quick check that can be trusted, and does the task mix untrusted input, sensitive access and outside effects?</p></div>
-      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>A preflight refuses to start outside a sandbox when credentials are exposed.</li><li>A role that holds all three risky properties is refused.</li></ul></div></div>
+      <div class="cell"><span class="tag">Rule 2</span><h3>Name the check</h3><p>Before starting, name the command or observation that will show the work is right, and record it. If no check exists, build it first. If none can exist, say so and label the result unverified.</p>
+        <div class="mods"><span class="mod"><b>verify</b>when no existing test covers the change</span></div></div>
+      <div class="cell"><div class="enf"><span class="tag">The ledger</span><ul><li>Records the check command, the starting commit and the protected test paths.</li><li>Kept outside the workspace, where the agent's edits do not reach it.</li></ul></div></div>
     </div>
 
     <div class="stop">
       <div class="mk"><i>3</i></div>
-      <div class="cell"><h3>Wire the check first</h3><p>Decide how success will be shown before any work: which kind of check fits, and who writes it. Treat a fix suggested in the request as a guess. If the task is impossible or contradicts itself, say so and stop.</p></div>
-      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>Existing tests and acceptance commands become read-only to the builder.</li><li>Edits that delete tests, add skips or loosen thresholds are rejected.</li></ul></div></div>
+      <div class="cell"><span class="tag">Rule 3</span><h3>Try the direct route</h3><p>Attempt the work as one piece. Split it only when a check fails or it must run in parallel. Plan only the next step in detail.</p>
+        <div class="mods"><span class="mod"><b>plan</b>when the direct attempt failed its check, or the step is hard to undo</span><span class="mod"><b>split</b>when a check failed, or parallel work is on the table</span></div></div>
+      <div class="cell"><div class="enf none"><span class="tag">Nothing to enforce here</span></div></div>
     </div>
 
     <div class="stop">
       <div class="mk"><i>4</i></div>
-      <div class="cell"><h3>Plan the next wave only</h3><p>List the acceptance checks, a thin end-to-end slice to build first, and the assumptions the plan rests on. Name the one observation that would prove the plan's premise wrong. Later waves stay as one-line milestones.</p></div>
-      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>The plan file must contain its checks, owners and assumptions.</li><li>Each assumption needs a command that tests it, or it is logged as a named risk.</li></ul></div></div>
-    </div>
-
-    <div class="stop">
-      <div class="mk"><i>5</i></div>
-      <div class="cell"><h3>Try it, in a tight loop</h3><p>Attempt the whole unit against its check. Act, run the check, read the real output, correct. Split the work only when the check fails. Fan out to other agents only for independent, read-heavy work.</p></div>
-      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>A worker restates its task before its first edit, and the restatement is compared with the brief.</li><li>Budgets for cost, time and tool calls. A repeated identical call is caught.</li><li>Deletes, credential reads and unknown package installs are blocked.</li></ul></div></div>
+      <div class="cell"><span class="tag">Rules 4, 5 and 9</span><h3>Work the loop</h3><p>Act, run the check, read the actual output, correct. Every retry changes something that can be named. Leave existing tests alone. Make the smallest change that meets the request.</p>
+        <div class="mods"><span class="mod"><b>diagnose</b>when the cause is unclear, or a fix did not work</span><span class="mod"><b>recover</b>at the first failed check after a correction</span></div></div>
+      <div class="cell"><div class="enf"><span class="tag">Trace and early notice</span><ul><li>Every tool call is written to a trace. It never blocks.</li><li>An edit to a protected test is refused on the spot, with the reason.</li></ul></div></div>
     </div>
 
     <div class="fork">
       <div class="mk"></div>
       <div class="opts">
-        <div class="opt"><span class="tag">If a planned trigger appears</span><b>Run the branch</b><p>The plan already said what to do. No new planning.</p></div>
-        <div class="opt"><span class="tag">If something unforeseen happens</span><b>Adjust once</b><p>Diagnose with written predictions, form one workable option, continue.</p></div>
-        <div class="opt bad"><span class="tag">If the premise is wrong</span><b>Abandon and re-size</b><p>Stop patching. Say what the evidence shows and return to stop 2.</p></div>
+        <div class="opt good"><span class="tag">The check passes</span><b>Carry on to the report</b><p>Nothing else is required.</p></div>
+        <div class="opt"><span class="tag">The check fails</span><b>Correct and go round again</b><p>After two attempts that each made things worse, stop and rebuild the diagnosis from the raw output.</p></div>
+        <div class="opt bad"><span class="tag">Rule 6: the premise is wrong</span><b>Drop the plan</b><p>Say what the evidence shows and return to stop 1.</p></div>
+        <div class="opt bad"><span class="tag">Rule 5: it cannot be done as written</span><b>Stop and report that</b><p>The checks contradict the request. Saying so is a correct result.</p></div>
       </div>
     </div>
 
-    <div class="post"><div class="mk"><i></i></div><div class="body"><span class="tag">Human post 2, only when needed</span><p><b>Approve an action that cannot be undone.</b> Pushing to the main branch, deleting outside the workspace, changing infrastructure, spending, sending anything outside.</p></div></div>
+    <div class="post"><div class="mk"><i></i></div><div class="body"><span class="tag">Rule 7, the human post</span><p><b>Get a decision before an action that cannot be undone.</b> Deleting outside the workspace, force-pushing, publishing, spending, changing infrastructure, sending anything outside the session. If no one is reachable, the agent returns a decision request and stops.</p>
+      <div class="mods"><span class="mod"><b>brief</b>to write the decision request</span><span class="mod"><b>options</b>when the step is hard to undo and alternatives are worth comparing</span></div>
+      <p class="guard"><b>In code:</b> a guard on shell commands catches recursive deletes outside the workspace, forced pushes and publishing. It catches accidents. It is not a sandbox.</p></div></div>
 
     <div class="stop">
-      <div class="mk"><i>6</i></div>
-      <div class="cell"><h3>Independent review</h3><p>A reviewer in a fresh context writes what it expects from the specification alone, then reads the change. Its verdict must quote a command it ran. Opinions without a command are discarded.</p></div>
-      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>The reviewer has read-only tools.</li><li>Its verdict has a fixed form: refuted, not refuted, or cannot verify.</li></ul></div></div>
+      <div class="mk"><i>5</i></div>
+      <div class="cell"><span class="tag">Rule 8</span><h3>Report with evidence</h3><p>Quote the check's output. Say separately whether the outcome asked for is met. Say "implemented but unverified" when the check did not run. Give only numbers a tool produced or that were counted.</p></div>
+      <div class="cell"><div class="enf"><span class="tag">The done-gate</span><ul><li>Before the agent may stop, the recorded check runs again.</li><li>The changes are compared with the starting commit for edits to protected tests.</li><li>A failing check blocks the stop once and shows the output. A timeout is reported as unverified. There is no silent pass.</li></ul></div></div>
     </div>
 
-    <div class="stop">
-      <div class="mk"><i>7</i></div>
-      <div class="cell"><h3>Prove it is done</h3><p>Report two things separately: the task finished, and the outcome the person wanted is met. State what kind of evidence each claim rests on.</p></div>
-      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>The session cannot end as "done" until the evidence commands re-run and pass.</li><li>A bug fix needs a recorded failing run before the fix and a passing run after.</li></ul></div></div>
-    </div>
-
-    <div class="post"><div class="mk"><i></i></div><div class="body"><span class="tag">Human post 3</span><p><b>Review the package.</b> Purpose, commands run with their output, risk level, decisions made, and a recommendation.</p></div></div>
-
-    <div class="stop">
-      <div class="mk"><i>8</i></div>
-      <div class="cell"><h3>Learn in code</h3><p>Ask what was expected, what happened, and why they differ. Then name the file, hook or test that will change, and the check that shows the change worked.</p></div>
-      <div class="cell"><div class="enf"><span class="tag">In code</span><ul><li>A lesson that names no file, hook or test is not filed.</li><li>The check that should have caught the problem is added as a test.</li></ul></div></div>
-    </div>
-
-    <div class="end"><div class="mk"><i></i></div><p>Done, with evidence</p></div>
+    <div class="end"><div class="mk"><i></i></div><p>Done, with the check's output quoted</p></div>
   </div>
 </section>
 
 <section>
-  <div class="sec-head"><span class="tag">Inside stop 5</span><h2>The loop, and the diagnosis that guards it</h2></div>
+  <div class="sec-head"><span class="tag">How it is put together</span><h2>Five layers, each one optional above the last</h2>
+  <p class="prose">Version 2 was one long document. Version 3 is five small layers, so an agent pays only for what it uses.</p></div>
+  <div class="layers">
+    <div class="layer"><div class="n">9</div><div><b>Kernel rules</b><span>Always in context. Capped at 2,800 bytes by a test, the size of the version 2 kernel, so version 3 cannot cost more per step.</span></div><em>Always on</em></div>
+    <div class="layer"><div class="n">7</div><div><b>Modules</b><span>plan, split, diagnose, verify, options, recover, brief. Each is one short file, read when its trigger appears.</span></div><em>On a trigger</em></div>
+    <div class="layer code"><div class="n">4</div><div><b>Hooks</b><span>The done-gate, protected test paths, the irreversible-action guard and the trace, plus kernel injection at session start. All sit on one ledger.</span></div><em>In code</em></div>
+    <div class="layer"><div class="n">3</div><div><b>Agent roles</b><span>A reader, a builder and a refuter, built from templates and one shared block. New agents start from the same base with one command.</span></div><em>For new agents</em></div>
+    <div class="layer"><div class="n">4</div><div><b>Test arms</b><span>The same tasks run with no JORDAN, the kernel alone, the kernel with hooks, and all of it. The result decides what gets deleted.</span></div><em>Decides what stays</em></div>
+  </div>
+  <div class="two">
+    <figure class="panel">
+      <span class="tag">The three roles</span>
+      <div class="roles">
+        <div><b>Reader</b><span>Finds and reads. Cannot edit.</span></div>
+        <div><b>Builder</b><span>Makes the change against the recorded check.</span></div>
+        <div><b>Refuter</b><span>Writes what it expects before reading the change. Cannot edit. A "refuted" verdict needs a command that reproduces the fault.</span></div>
+      </div>
+    </figure>
+    <figure class="panel">
+      <span class="tag">The four test arms</span>
+      <div class="arms">
+        <div><i>A0</i><span class="b0">Plain agent</span></div>
+        <div><i>A1</i><span class="b0">Plain agent</span><span class="b1">Kernel</span></div>
+        <div><i>A2</i><span class="b0">Plain agent</span><span class="b1">Kernel</span><span class="b2">Hooks</span></div>
+        <div><i>A3</i><span class="b0">Plain agent</span><span class="b1">Kernel</span><span class="b2">Hooks</span><span class="b3">Modules</span></div>
+      </div>
+      <figcaption>Each arm adds one layer, so the gain from each layer can be read off separately. Two pilot tasks ship with 3.0. The full task set is yours to write from real failures.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="tag">Inside stop 4</span><h2>The loop, and the diagnosis that guards it</h2></div>
   <div class="loopgrid">
     <figure>
       <svg viewBox="0 0 340 300" role="img" aria-label="The execution loop: act, run the check, read the output, correct, and repeat. A failed check leads to diagnosis before any second fix.">
@@ -357,7 +405,7 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     </figure>
     <div class="prose">
       <h3>When the check fails, diagnose before fixing again</h3>
-      <p>Version 2 gave diagnosis one line. The research found agents repair a fault more often than they identify it, so version 3 gives it a short written procedure:</p>
+      <p>Version 2 gave diagnosis one line. The research found agents repair a fault more often than they identify it, so version 3 gives it a module of its own:</p>
       <p><b>1.</b> Reproduce the failure and paste the output.<br><b>2.</b> Find a similar case that passes.<br><b>3.</b> List candidate causes, and for each one write what it predicts that the others do not.<br><b>4.</b> Run the test where the predictions differ.<br><b>5.</b> Confirm the cause both ways: remove it and the fault goes, force it and the fault returns.</p>
     </div>
   </div>
@@ -404,17 +452,17 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 <section>
   <div class="sec-head"><span class="tag">Version 2 to version 3</span><h2>What changes</h2></div>
   <div class="swap">
-    <div class="row head"><div>Version 2</div><div class="arr"></div><div>Version 3 proposal</div></div>
-    <div class="row"><div class="was">Twelve phases described in a prompt and marked mandatory</div><div class="arr">→</div><div class="now">A small plain kernel, with gates a script can check moved into hooks</div></div>
-    <div class="row"><div class="was">Plan the whole task as a dependency graph up front</div><div class="arr">→</div><div class="now">Try first, split on failure, plan the next wave in detail</div></div>
-    <div class="row"><div class="was">Three competing plans for every deep task</div><div class="arr">→</div><div class="now">One plan and a flaw check. Alternatives only on a trigger, built in separate contexts</div></div>
-    <div class="row"><div class="was">Every deep task goes to a human for approval</div><div class="arr">→</div><div class="now">The human at three posts: intent, irreversible actions, final review</div></div>
-    <div class="row"><div class="was">"Backbrief" meant the planner checking its own plan</div><div class="arr">→</div><div class="now">A true confirmation brief: the receiver restates the task before starting</div></div>
-    <div class="row"><div class="was">A reviewer reads the change and judges it</div><div class="arr">→</div><div class="now">The reviewer forms expectations first and backs its verdict with a command</div></div>
+    <div class="row head"><div>Version 2</div><div class="arr"></div><div>Version 3</div></div>
+    <div class="row"><div class="was">Twelve phases described in a prompt and marked mandatory</div><div class="arr">→</div><div class="now">Nine plain rules, with every gate a script can check moved into hooks</div></div>
+    <div class="row"><div class="was">Plan the whole task as a dependency graph up front</div><div class="arr">→</div><div class="now">Try the direct route, split only when a check fails</div></div>
+    <div class="row"><div class="was">Three competing plans for every deep task</div><div class="arr">→</div><div class="now">One option and a check. Alternatives only on a trigger, written in separate contexts</div></div>
+    <div class="row"><div class="was">An approval gate on every deep task</div><div class="arr">→</div><div class="now">A decision only before an action that cannot be undone</div></div>
+    <div class="row"><div class="was">A premortem with four or five personas</div><div class="arr">→</div><div class="now">One fresh-context failure pass, only before an irreversible step or when no fast check exists</div></div>
+    <div class="row"><div class="was">Risk scores fused across phases</div><div class="arr">→</div><div class="now">Three sizes, set by how hard the work is to undo</div></div>
+    <div class="row"><div class="was">A reviewer reads the change and judges it</div><div class="arr">→</div><div class="now">A refuter writes its expectations first and backs its verdict with a command</div></div>
     <div class="row"><div class="was">"Name two candidate causes"</div><div class="arr">→</div><div class="now">A diagnosis log with a prediction for each cause</div></div>
-    <div class="row"><div class="was">Replanning is one escalation ladder</div><div class="arr">→</div><div class="now">Run a planned branch, adjust once, or abandon the premise</div></div>
-    <div class="row"><div class="was">Lessons stored as prose</div><div class="arr">→</div><div class="now">Each lesson becomes a hook, a test or a rule</div></div>
-    <div class="row"><div class="was">The "45% rule" as a limit on orchestration overhead</div><div class="arr">→</div><div class="now">Corrected: it is the success rate above which adding agents stops helping</div></div>
+    <div class="row"><div class="was">Nineteen maxims and an experience store</div><div class="arr">→</div><div class="now">Retired. A trace of every tool call and the four-arm test take their place</div></div>
+    <div class="row"><div class="was">The "45% rule" as a limit on orchestration overhead</div><div class="arr">→</div><div class="now">Corrected in an errata note. Version 2 is archived, not deleted</div></div>
   </div>
 </section>
 
@@ -431,7 +479,7 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 <section>
   <div class="sec-head"><span class="tag">Running with prompts switched off</span><h2>Safety comes from layers around the agent</h2>
-  <p class="prose">The operator runs agents without permission prompts. That is defensible only when what the agent cannot reach is set by its surroundings.</p></div>
+  <p class="prose">The operator runs agents without permission prompts. That is defensible only when what the agent cannot reach is set by its surroundings. Version 3.0 ships the guard and the done-gate, which catch accidents. The outer layers below are the research recommendation and are yours to set up.</p></div>
   <div class="nest">
     <div class="lab"><b>Boundary</b><span>A sandbox limited to the working folder, an allowlist for outside connections, short-lived credentials, backups the agent cannot touch.</span></div>
     <div class="nest">
@@ -448,15 +496,15 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 </section>
 
 <section>
-  <div class="sec-head"><span class="tag">Build order</span><h2>Six things first</h2>
-  <p class="prose">The first and second were the top priorities of the July review and are still open.</p></div>
+  <div class="sec-head"><span class="tag">In the build now</span><h2>What version 3.0 ships</h2>
+  <p class="prose">Version 3.0 covers solo sessions and agents built from the JORDAN base. Reaching the orchestrate seats and the swarmfucker installer comes in companion changes afterwards.</p></div>
   <div class="steps">
-    <div><b>A test suite for JORDAN itself</b><span>30 to 50 of your own past tasks, four setups from a plain agent to the full workflow, at least three runs each.</span></div>
-    <div><b>A stop hook for "done"</b><span>No completion without evidence that re-runs and passes.</span></div>
-    <div><b>Protected checks</b><span>Read-only tests, no weakening of gates, a failing run before every fix.</span></div>
-    <div><b>An exit for impossible tasks</b><span>Saying "this cannot be done as asked" becomes a good outcome.</span></div>
-    <div><b>One short operating file</b><span>Plain sentences, one model of how work runs, only what the agent cannot work out itself.</span></div>
-    <div><b>Checkable gates into hooks</b><span>Anything a script can decide stops being a request in a prompt.</span></div>
+    <div><b>The kernel</b><span>Nine rules in one file, with a test that holds its size.</span></div>
+    <div><b>Seven modules</b><span>Each loaded by its trigger, never by the size of the task.</span></div>
+    <div><b>Hooks and the ledger</b><span>The done-gate, protected tests, the guard and the trace, with a small command that records the check.</span></div>
+    <div><b>The agent base</b><span>Three roles, and a scaffold command for building new agents on the same rules.</span></div>
+    <div><b>Two ways to install</b><span>As a Claude Code plugin, or a plain copy into your settings that can be undone.</span></div>
+    <div><b>The test runner</b><span>Four arms and two pilot tasks: a bug with a tempting wrong patch, and a task whose tests contradict the request.</span></div>
   </div>
 </section>
 
