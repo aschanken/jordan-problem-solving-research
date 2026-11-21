@@ -452,11 +452,11 @@ def main(argv=None):
     out_dir = os.path.abspath(args.out or os.path.join(EVAL_DIR, "results", run_id))
     os.makedirs(out_dir, exist_ok=True)
     if args.workdir:
-        os.makedirs(args.workdir, exist_ok=True)
-        workdir = args.workdir
+        workdir = check_workdir(args.workdir)
+        os.makedirs(workdir, exist_ok=True)
     else:
-        workdir = tempfile.mkdtemp(prefix="jordan-eval-", dir=tempfile.gettempdir())
-    workdir = check_workdir(workdir)
+        workdir = check_workdir(tempfile.mkdtemp(prefix="jordan-eval-",
+                                                 dir=tempfile.gettempdir()))
     keep = args.keep or args.dry_run
     claude = shutil.which(args.claude) or args.claude
     version = "dry-run" if args.dry_run else cli_version(claude)
