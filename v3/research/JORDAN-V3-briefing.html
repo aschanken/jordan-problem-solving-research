@@ -235,7 +235,7 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 <div class="wrap">
 
 <header class="hero">
-  <div class="grid"><span>JORDAN WORKFLOW</span><span>RESEARCH BRIEFING</span><span>21 NOV 2026</span><span>DESIGN SETTLED, BUILD IN PROGRESS</span></div>
+  <div class="grid"><span>JORDAN WORKFLOW</span><span>RESEARCH BRIEFING</span><span>21 NOV 2026</span><span>VERSION 3.0 BUILT, IN REVIEW</span></div>
   <h1>JORDAN V3 Briefing</h1>
   <p class="lede">JORDAN turns planning doctrine and problem-solving methods into a workflow for AI coding agents. This page shows what new research says about version 2, and the design of version 3 that came out of it.</p>
   <div class="bluf">
@@ -243,7 +243,7 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     <div><b>Say less in prompts</b><span>A small plain kernel. Process that a hook can enforce leaves the prompt.</span></div>
     <div><b>Measure everything</b><span>No phase stays unless a test against a plain agent shows it earns its cost.</span></div>
   </div>
-  <p class="note">The workflow below is the settled version 3 design, now being built. Details may still move during the build. Figures come from the research report, which names the source for each.</p>
+  <p class="note">The workflow below is version 3.0 as built, now in review as <a href="https://github.com/aschanken/jordan-problem-solving-research/pull/2">pull request 2</a>. Its effect is not yet measured; the test arms further down exist to measure it. Figures come from the research report, which names the source for each.</p>
 </header>
 
 <section>
@@ -307,7 +307,7 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
       <div class="mk"><i>2</i></div>
       <div class="cell"><span class="tag">Rule 2</span><h3>Name the check</h3><p>Before starting, name the command or observation that will show the work is right, and record it. If no check exists, build it first. If none can exist, say so and label the result unverified.</p>
         <div class="mods"><span class="mod"><b>verify</b>when no existing test covers the change</span></div></div>
-      <div class="cell"><div class="enf"><span class="tag">The ledger</span><ul><li>Records the check command, the starting commit and the protected test paths.</li><li>Kept outside the workspace, where the agent's edits do not reach it.</li></ul></div></div>
+      <div class="cell"><div class="enf"><span class="tag">The ledger</span><ul><li>Records the check command, the starting commit and the protected test paths.</li><li>Kept outside the workspace, where the agent's edits do not reach it.</li><li>If the agent starts editing with no check recorded, the harness reminds it once, and blocks one stop per session until a check is recorded or the agent states that none can exist.</li></ul></div></div>
     </div>
 
     <div class="stop">
@@ -341,7 +341,7 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     <div class="stop">
       <div class="mk"><i>5</i></div>
       <div class="cell"><span class="tag">Rule 8</span><h3>Report with evidence</h3><p>Quote the check's output. Say separately whether the outcome asked for is met. Say "implemented but unverified" when the check did not run. Give only numbers a tool produced or that were counted.</p></div>
-      <div class="cell"><div class="enf"><span class="tag">The done-gate</span><ul><li>Before the agent may stop, the recorded check runs again.</li><li>The changes are compared with the starting commit for edits to protected tests.</li><li>A failing check blocks the stop once and shows the output. A timeout is reported as unverified. There is no silent pass.</li></ul></div></div>
+      <div class="cell"><div class="enf"><span class="tag">The done-gate</span><ul><li>Before the agent may stop, the recorded check runs again.</li><li>The changes are compared with the starting commit for edits to protected tests.</li><li>A failing check blocks the stop and shows the output, at most twice for one recorded check. The agent can fix it, or mark the result unverified or impossible with a reason. After the second block the gate lets the stop through and says so. A timeout is reported as unverified. There is no silent pass.</li></ul></div></div>
     </div>
 
     <div class="end"><div class="mk"><i></i></div><p>Done, with the check's output quoted</p></div>
@@ -496,7 +496,7 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 </section>
 
 <section>
-  <div class="sec-head"><span class="tag">In the build now</span><h2>What version 3.0 ships</h2>
+  <div class="sec-head"><span class="tag">Built and in review</span><h2>What version 3.0 ships</h2>
   <p class="prose">Version 3.0 covers solo sessions and agents built from the JORDAN base. Reaching the orchestrate seats and the swarmfucker installer comes in companion changes afterwards.</p></div>
   <div class="steps">
     <div><b>The kernel</b><span>Nine rules in one file, with a test that holds its size.</span></div>
@@ -505,6 +505,9 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     <div><b>The agent base</b><span>Three roles, and a scaffold command for building new agents on the same rules.</span></div>
     <div><b>Two ways to install</b><span>As a Claude Code plugin, or a plain copy into your settings that can be undone.</span></div>
     <div><b>The test runner</b><span>Four arms and two pilot tasks: a bug with a tempting wrong patch, and a task whose tests contradict the request.</span></div>
+    <div><b>The agent handover file</b><span>One file a stock coding agent can be handed to adopt the rules and procedures without the repository.</span></div>
+    <div><b>The pilot run</b><span>Eight runs, one per cell, to prove the instrument works. On the contradiction task the plain agent edited the test and claimed done; the three JORDAN arms stopped and reported it. One run per cell decides nothing.</span></div>
+    <div><b>An independent refutation</b><span>A separate reviewer reproduced ten defects in the hooks before release. Each was fixed with a regression test or answered in writing.</span></div>
   </div>
 </section>
 
