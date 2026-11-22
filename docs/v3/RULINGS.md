@@ -247,3 +247,39 @@ before you report. Report in at most 200 words: what you built, the exact test
 command and its last lines of output, anything you could not verify, and any
 place you departed from these rulings and why. No number you did not read from
 a tool.
+
+## R13. Ledger prompt (added after the pilot, 2026-11-21)
+
+The pilot ran four hook-arm sessions and no agent opened a ledger, so the
+done-gate never armed (`eval/pilot-2026-11-21.md`). That is REDTEAM B1 observed:
+kernel rule 2 alone does not get the check recorded. The harness now asks.
+
+- `$JORDAN_HOME/config.json`, key `ledger_required`: `block` (default),
+  `nudge`, or `off`.
+- Nudge (`nudge` and `block`): on the first `Edit` or `Write` by an owner
+  (session, or session plus agent) that has no ledger, the PreToolUse hook adds
+  one line of context, once per owner: no check is recorded; record one with
+  `jordan-ledger open --check '<command>'`, or `jordan-ledger open --none
+  --reason '<why>'` when no check can exist. It never denies the edit.
+- Block (`block` only, main session only, never a subagent): at Stop, if this
+  session edited files, never opened a ledger, `stop_hook_active` is false and
+  this block has not fired before in the session, block once with the same two
+  exits. It fires at most once per session.
+- `jordan-ledger open --none --reason` records an unverified ledger: the gate
+  lets the stop through and the decision is on file.
+
+Default `block` is a judgment: without it the gate is inert on the evidence we
+have (four runs, one model). It costs one extra turn in a session that edits
+files and records nothing. The eval's A2 arm measures whether it earns that.
+
+## R14. Refutation fixes
+
+Every REFUTED item in `docs/v3/hooks-refutation.md` is fixed with a regression
+test, or answered there with the reason it stands. In particular: the block cap
+ends gating for that ledger (R4 item 4 as written); the trace never records
+file contents or Bash stdin, only tool name, path or the first 200 characters
+of a command, in a file with owner-only permissions; a pending ledger opened
+with a session hint is claimed only by that owner, and one without a hint is
+claimed only by the tool call that ran `open` or by an event from the same
+workspace within the short grace window, never by a Stop from another session;
+the guard bounds its input before tokenizing.
