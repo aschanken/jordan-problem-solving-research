@@ -1,0 +1,367 @@
+"""Tests for the JORDAN agent base (RULINGS R8): templates, the shared block,
+build-agents.py, lint-agents.py and new-agent.py.
+
+Stdlib unittest; pytest collects it too:
+    python3 -m unittest tests.test_agents -v
+    pytest tests/test_agents.py
+
+Every test that changes a file works on a temporary copy of `agents/` and
+`tools/`. The scripts find their tree from their own path, so the copy is
+self-contained and the real tree is never written.
+"""
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+BEGIN = "<!-- jordan-core:begin -->"
+END = "<!-- jordan-core:end -->"
+INSERT = "<!-- jordan-core:insert -->"
+SHIPPED = ("jordan-reader", "jordan-builder", "jordan-refuter")
+
+# Copied from orchestrate's standing orders, the file the owner's lead and
+# report gates already read:
+#   /home/user/orchestrate-skill/orchestrate/references/standing-orders.md
+#   lines 53-56 (report shape) and 57-59 (Decision Request line).
+# The shared block must carry both byte for byte, line breaks included.
+ORCHESTRATE_REPORT_SHAPE = (
+    "- Final message = the report, ≤25 lines: line 1\n"
+    "  `STATUS: DONE|PARTIAL|BLOCKED|DECISION_REQUEST`; then `EVIDENCE:` command\n"
+    "  → result lines; `CHANGED:` paths; `OPEN:` issues; `DETAIL:` path of any\n"
+    "  longer report. Never restate the brief.\n"
+)
+ORCHESTRATE_DECISION_REQUEST = (
+    "- Decision Request lines: `DR-<n> | <class> | <question> | options: A) …\n"
+    "  B) … (each with its consequence) | context: <file:line> | recommend:\n"
+    "  <letter + one line>`.\n"
+)
+ORCHESTRATE_STATUS_VALUES = ["DONE", "PARTIAL", "BLOCKED", "DECISION_REQUEST"]
+
+
+def run(root: Path, script: str, *args: str):
+    return subprocess.run(
+        [sys.executable, str(root / "tools" / script), *args],
+        capture_output=True, text=True, check=False)
+
+
+def block_of(root: Path) -> str:
+    text = (root / "agents/shared/jordan-core.md").read_text(encoding="utf-8")
+    return text[text.index(BEGIN) + len(BEGIN):text.index(END)]
+
+
+class TreeCase(unittest.TestCase):
+    """Gives each test a private copy of the agent tree in self.tmp."""
+
+    def setUp(self):
+        self._dir = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._dir.name)
+        shutil.copytree(ROOT / "agents", self.tmp / "agents")
+        (self.tmp / "tools").mkdir()
+        for name in ("build-agents.py", "lint-agents.py", "new-agent.py"):
+            shutil.copy(ROOT / "tools" / name, self.tmp / "tools" / name)
+
+    def tearDown(self):
+        self._dir.cleanup()
+
+    def reset(self):
+        """A fresh copy, for subtests that each break something different."""
+        self._dir.cleanup()
+        self.setUp()
+
+    def template(self, name: str) -> Path:
+        return self.tmp / "agents" / "templates" / f"{name}.md"
+
+    def edit(self, path: Path, old: str, new: str):
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(old, text, f"fixture drift: {old!r} not in {path.name}")
+        path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+    def lint_after_build(self):
+        """Build, then lint: the rendered files are current, so anything the
+        lint reports is the fault under test and not staleness."""
+        run(self.tmp, "build-agents.py")
+        return run(self.tmp, "lint-agents.py")
+
+    def assert_lint_fails(self, result, fragment: str):
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(fragment, result.stdout)
+        self.assertNotIn("OK:", result.stdout)
+
+
+class ShippedSet(unittest.TestCase):
+    def test_build_is_current(self):
+        result = run(ROOT, "build-agents.py", "--check")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("OK:", result.stdout)
+
+    def test_lint_passes(self):
+        result = run(ROOT, "lint-agents.py")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(result.stdout.strip().splitlines()), 1)
+        self.assertTrue(result.stdout.startswith("OK:"))
+
+    def test_three_roles_ship(self):
+        for name in SHIPPED:
+            self.assertTrue((ROOT / "agents/templates" / f"{name}.md").exists())
+            self.assertTrue((ROOT / "agents" / f"{name}.md").exists())
+
+    def test_block_under_cap(self):
+        self.assertLessEqual(len(block_of(ROOT).encode("utf-8")), 1200)
+
+    def test_rendered_carry_identical_block_and_generated_comment(self):
+        block = BEGIN + block_of(ROOT) + END
+        for name in SHIPPED:
+            text = (ROOT / "agents" / f"{name}.md").read_text(encoding="utf-8")
+            self.assertEqual(text.count(block), 1, name)
+            self.assertNotIn(INSERT, text, name)
+            frontmatter = text.split("\n---\n", 1)[0]
+            self.assertIn("# generated by tools/build-agents.py", frontmatter)
+            self.assertIn("edit the template", frontmatter)
+
+    def test_status_shape_matches_orchestrate(self):
+        block = block_of(ROOT)
+        self.assertIn(ORCHESTRATE_REPORT_SHAPE, block)
+        self.assertIn(ORCHESTRATE_DECISION_REQUEST, block)
+        found = re.search(r"`STATUS: ([A-Z_|]+)`; then", block)
+        self.assertIsNotNone(found)
+        self.assertEqual(found.group(1).split("|"), ORCHESTRATE_STATUS_VALUES)
+        # Any other STATUS value the block names must be one of the four.
+        for value in re.findall(r"STATUS: ([A-Z_]+)", block):
+            self.assertIn(value, ORCHESTRATE_STATUS_VALUES)
+
+    def test_block_carries_what_r8_requires(self):
+        block = block_of(ROOT)
+        for needle in ("run the check", "`STATUS: BLOCKED`", "impossible:",
+                       '"implemented but unverified"',
+                       "jordan-ledger open --check"):
+            self.assertIn(needle, block)
+
+    def test_refuter_has_expectations_first_protocol(self):
+        text = (ROOT / "agents/jordan-refuter.md").read_text(encoding="utf-8")
+        self.assertLess(text.index("write your expectations"),
+                        text.index("Run the acceptance command"))
+        self.assertIn("`REFUTED` needs the command that reproduces", text)
+        self.assertIn("`CONFIRMED` lists the commands you ran", text)
+
+    def test_no_cut_features(self):
+        # R1 / M7: no CONFIRM: first line, no rule-of-two tags, no selector.
+        self.assertFalse((ROOT / "agents/templates/selector.md").exists())
+        self.assertFalse((ROOT / "agents/templates/jordan-selector.md").exists())
+        for path in (ROOT / "agents").rglob("*.md"):
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("CONFIRM:", text, path.name)
+            self.assertNotIn("abc=", text, path.name)
+
+
+class BuildCheck(TreeCase):
+    def test_check_lists_stale_file_and_build_fixes_it(self):
+        self.edit(self.template("jordan-builder"), "Builder. ", "Builder! ")
+        result = run(self.tmp, "build-agents.py", "--check")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("agents/jordan-builder.md: stale", result.stdout)
+        self.assertNotIn("jordan-reader", result.stdout)
+        self.assertEqual(run(self.tmp, "build-agents.py").returncode, 0)
+        self.assertEqual(run(self.tmp, "build-agents.py", "--check").returncode, 0)
+
+    def test_block_edit_makes_every_rendered_file_stale(self):
+        self.edit(self.tmp / "agents/shared/jordan-core.md", "Loop: act", "Loop: do")
+        result = run(self.tmp, "build-agents.py", "--check")
+        self.assertEqual(result.returncode, 1)
+        for name in SHIPPED:
+            self.assertIn(f"agents/{name}.md: stale", result.stdout)
+
+    def test_check_lists_missing_and_orphaned_files(self):
+        (self.tmp / "agents/jordan-reader.md").unlink()
+        self.template("jordan-refuter").unlink()
+        result = run(self.tmp, "build-agents.py", "--check")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("agents/jordan-reader.md: missing", result.stdout)
+        self.assertIn("agents/jordan-refuter.md: generated, but its template",
+                      result.stdout)
+
+    def test_check_writes_nothing(self):
+        self.edit(self.template("jordan-builder"), "Builder. ", "Builder! ")
+        before = (self.tmp / "agents/jordan-builder.md").read_bytes()
+        run(self.tmp, "build-agents.py", "--check")
+        self.assertEqual((self.tmp / "agents/jordan-builder.md").read_bytes(), before)
+
+
+class LintCatches(TreeCase):
+    def test_missing_required_field(self):
+        for field, line in (("model", "model: haiku\n"),
+                            ("effort", "effort: medium\n"),
+                            ("maxTurns", "maxTurns: 60\n"),
+                            ("omitClaudeMd", "omitClaudeMd: true\n"),
+                            ("description", None)):
+            with self.subTest(field=field):
+                self.reset()
+                path = self.template("jordan-reader")
+                if line is None:
+                    text = path.read_text(encoding="utf-8")
+                    line = next(l for l in text.split("\n")
+                                if l.startswith("description:")) + "\n"
+                self.edit(path, line, "")
+                self.assert_lint_fails(
+                    self.lint_after_build(),
+                    f"jordan-reader.md: missing required field `{field}`")
+
+    def test_multiline_description(self):
+        for new in ("description: >\n  JORDAN reader.\n  Read-only.\n",
+                    "description: JORDAN reader.\n  Second line.\n"):
+            with self.subTest(new=new):
+                self.reset()
+                path = self.template("jordan-reader")
+                text = path.read_text(encoding="utf-8")
+                old = next(l for l in text.split("\n")
+                           if l.startswith("description:")) + "\n"
+                self.edit(path, old, new)
+                self.assert_lint_fails(
+                    self.lint_after_build(),
+                    "jordan-reader.md: description spans more than one line")
+
+    def test_reader_with_edit_in_tools(self):
+        path = self.template("jordan-reader")
+        self.edit(path, "tools: Read, Grep, Glob, Bash",
+                  "tools: Read, Grep, Glob, Bash, Edit")
+        self.edit(path, "disallowedTools: Edit, Write, NotebookEdit\n", "")
+        self.assert_lint_fails(self.lint_after_build(),
+                               "jordan-reader.md: reader can use Edit")
+
+    def test_refuter_with_edit_in_tools(self):
+        path = self.template("jordan-refuter")
+        self.edit(path, "tools: Read, Grep, Glob, Bash, Write",
+                  "tools: Read, Grep, Glob, Bash, Write, Edit")
+        self.edit(path, "disallowedTools: Edit, NotebookEdit\n", "")
+        self.assert_lint_fails(self.lint_after_build(),
+                               "jordan-refuter.md: refuter can use Edit")
+
+    def test_refuter_inheriting_every_tool(self):
+        # `tools` omitted and nothing disallowed: Edit arrives by inheritance.
+        path = self.template("jordan-refuter")
+        self.edit(path, "tools: Read, Grep, Glob, Bash, Write\n", "")
+        self.edit(path, "disallowedTools: Edit, NotebookEdit\n", "")
+        result = self.lint_after_build()
+        self.assert_lint_fails(result, "jordan-refuter.md: refuter can use Edit")
+        self.assertIn("tools is omitted", result.stdout)
+
+    def test_disallowed_edit_covers_omitted_tools(self):
+        # `tools` omitted but Edit disallowed: only the missing field is
+        # reported, not an Edit problem.
+        path = self.template("jordan-refuter")
+        self.edit(path, "tools: Read, Grep, Glob, Bash, Write\n", "")
+        result = self.lint_after_build()
+        self.assert_lint_fails(result, "missing required field `tools`")
+        self.assertNotIn("can use", result.stdout)
+
+    def test_yaml_list_tools_are_read(self):
+        path = self.template("jordan-reader")
+        self.edit(path, "tools: Read, Grep, Glob, Bash\n",
+                  "tools:\n  - Read\n  - Edit\n")
+        self.edit(path, "disallowedTools: Edit, Write, NotebookEdit\n",
+                  "disallowedTools: [Write, NotebookEdit]\n")
+        result = self.lint_after_build()
+        self.assert_lint_fails(result, "jordan-reader.md: reader can use Edit")
+        self.assertNotIn("can use Write", result.stdout)
+
+    def test_builder_may_edit(self):
+        result = self.lint_after_build()
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_missing_role_comment(self):
+        self.edit(self.template("jordan-builder"), "# jordan-role: builder\n", "")
+        self.assert_lint_fails(self.lint_after_build(),
+                               "jordan-builder.md: no `# jordan-role:")
+
+    def test_block_over_cap(self):
+        self.edit(self.tmp / "agents/shared/jordan-core.md",
+                  "## JORDAN core\n", "## JORDAN core\n" + "- pad\n" * 40)
+        result = self.lint_after_build()
+        self.assert_lint_fails(result, "agents/shared/jordan-core.md: shared block is")
+        self.assertIn("cap 1200", result.stdout)
+
+    def test_template_without_insert_marker(self):
+        self.edit(self.template("jordan-builder"), INSERT + "\n", "")
+        self.assert_lint_fails(
+            self.lint_after_build(),
+            f"jordan-builder.md: missing {INSERT}")
+
+    def test_rendered_out_of_date(self):
+        self.edit(self.template("jordan-builder"), "Builder. ", "Builder! ")
+        self.assert_lint_fails(
+            run(self.tmp, "lint-agents.py"),
+            "agents/jordan-builder.md: rendered file stale")
+
+    def test_one_line_per_problem(self):
+        self.edit(self.template("jordan-builder"), "model: sonnet\n", "")
+        self.edit(self.template("jordan-builder"), "effort: high\n", "")
+        result = self.lint_after_build()
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(len(result.stdout.strip().splitlines()), 2)
+
+
+class NewAgent(TreeCase):
+    def test_creates_valid_agent_without_jordan_prefix(self):
+        result = run(self.tmp, "new-agent.py", "api-reader", "--role", "reader",
+                     "--description", "Reads the API layer and reports routes.")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        template = self.template("api-reader").read_text(encoding="utf-8")
+        rendered = (self.tmp / "agents/api-reader.md").read_text(encoding="utf-8")
+        self.assertIn("\nname: api-reader\n", template)
+        self.assertIn(
+            "\ndescription: Reads the API layer and reports routes.\n", template)
+        self.assertIn("# jordan-role: reader", template)
+        self.assertIn(BEGIN, rendered)
+        self.assertIn("\nname: api-reader\n", rendered)
+        self.assertIn("agents/templates/api-reader.md", result.stdout)
+        self.assertIn("lint-agents.py", result.stdout)
+        self.assertIn("jordan:api-reader", result.stdout)
+        self.assertEqual(run(self.tmp, "build-agents.py", "--check").returncode, 0)
+        lint = run(self.tmp, "lint-agents.py")
+        self.assertEqual(lint.returncode, 0, lint.stdout)
+        self.assertIn("OK: 4 agent templates", lint.stdout)
+
+    def test_each_role_scaffolds_and_lints(self):
+        for role in ("reader", "builder", "refuter"):
+            result = run(self.tmp, "new-agent.py", f"my-{role}", "--role", role)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(run(self.tmp, "lint-agents.py").returncode, 0)
+
+    def test_refuses_bad_names(self):
+        for name in ("jordan:reader", "Api-Reader", "api_reader", "api--reader",
+                     "-api", "api-", "../escape", "a b"):
+            with self.subTest(name=name):
+                result = run(self.tmp, "new-agent.py", "--role", "reader",
+                             "--", name)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("kebab-case", result.stderr)
+        self.assertEqual(
+            sorted(p.stem for p in (self.tmp / "agents/templates").glob("*.md")),
+            sorted(SHIPPED))
+
+    def test_refuses_overwrite(self):
+        first = run(self.tmp, "new-agent.py", "api-reader", "--role", "reader")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        before = self.template("api-reader").read_bytes()
+        second = run(self.tmp, "new-agent.py", "api-reader", "--role", "builder")
+        self.assertEqual(second.returncode, 1)
+        self.assertIn("exists; not overwriting", second.stderr)
+        self.assertEqual(self.template("api-reader").read_bytes(), before)
+        shipped = run(self.tmp, "new-agent.py", "jordan-builder", "--role", "builder")
+        self.assertEqual(shipped.returncode, 1)
+
+    def test_refuses_multiline_description_and_unknown_role(self):
+        result = run(self.tmp, "new-agent.py", "api-reader", "--role", "reader",
+                     "--description", "one\ntwo")
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(self.template("api-reader").exists())
+        result = run(self.tmp, "new-agent.py", "api-judge", "--role", "selector")
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(self.template("api-judge").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

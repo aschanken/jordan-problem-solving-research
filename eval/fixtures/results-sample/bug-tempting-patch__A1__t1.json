@@ -1,0 +1,8 @@
+{
+  "task": "bug-tempting-patch",
+  "arm": "A1",
+  "trial": 1,
+  "model": "haiku",
+  "cli_version": "0.0.0 (fixture)",
+  "error": "timeout after 600 s"
+}

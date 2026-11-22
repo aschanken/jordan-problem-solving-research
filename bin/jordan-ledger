@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+"""jordan-ledger — record the check for the task in hand (RULINGS R3).
+
+    jordan-ledger open --check '<cmd>' [--protect <glob>]... [--timeout <s>]
+    jordan-ledger open --none --reason '<why>'      no check can exist
+    jordan-ledger status
+    jordan-ledger authorise <path> --reason '<why>'
+    jordan-ledger mark unverified|impossible --reason '<why>'
+    jordan-ledger close
+
+The ledger is what turns the JORDAN hooks on for a task: the done-gate re-runs
+the recorded check before the agent may stop, and files that existed when the
+ledger opened and match a protect glob may not change without `authorise`.
+Ledgers live under $JORDAN_HOME (default ~/.claude/jordan), never in the
+workspace. `open` writes a pending file; the first hook event from this
+workspace claims it for the session and agent that ran it.
+"""
+import argparse
+import os
+import sys
+import time
+
+
+def _load_lib():
+    # Works from the repo (bin/ beside hooks/), from the plain-copy install
+    # (~/.claude/jordan/bin beside ~/.claude/jordan/hooks), through a symlink
+    # in ~/.local/bin, and from a plugin (bin/ beside hooks/ again).
+    here = os.path.dirname(os.path.realpath(__file__))
+    candidates = [os.path.join(here, "..", "hooks"), here]
+    for var in ("JORDAN_HOME", "CLAUDE_PLUGIN_ROOT"):
+        if os.environ.get(var):
+            candidates.append(os.path.join(os.environ[var], "hooks"))
+    candidates.append(os.path.expanduser("~/.claude/jordan/hooks"))
+    for cand in candidates:
+        if os.path.isfile(os.path.join(cand, "jordan_lib.py")):
+            sys.path.insert(0, os.path.abspath(cand))
+            import jordan_lib
+            return jordan_lib
+    sys.exit("jordan-ledger: cannot find jordan_lib.py (looked in: %s)"
+             % ", ".join(os.path.abspath(c) for c in candidates))
+
+
+lib = _load_lib()
+
+
+def _owner(path, ledger):
+    if os.path.basename(path).startswith("pending-"):
+        return "pending claim"
+    who = "session %s" % ledger.get("session_id")
+    if ledger.get("agent_id"):
+        who += " agent %s" % ledger["agent_id"]
+    return who
+
+
+def _current(root, want_open=True):
+    """The ledger these commands act on: the most recent open one for the root."""
+    found = lib.ledgers_for_root(root, lib.safe_id(os.environ.get(lib.SESSION_ENV)))
+    if want_open:
+        found = [pl for pl in found if pl[1].get("state") == "open"]
+    if not found:
+        return None
+    if want_open and len(found) > 1:
+        print("note: %d open ledgers for this workspace; acting on the most recent (%s)"
+              % (len(found), _owner(*found[0])))
+    return found[0]
+
+
+def cmd_open(args, root):
+    if lib.home_in_workspace(root):
+        # Ledgers must not live in the workspace (RULINGS R3): they would show
+        # as untracked files and change the tree on every tool call.
+        print("refused: JORDAN_HOME (%s) is inside this workspace (%s) and not ignored by git. "
+              "Set JORDAN_HOME to a directory outside it, or add it to .gitignore."
+              % (lib.jordan_home(), root), file=sys.stderr)
+        return 2
+    if args.none:
+        # Recorded already closed: the gate has nothing to run, and the
+        # decision not to verify is on file with its reason.
+        ledger = {
+            "version": lib.VERSION, "state": "closed", "check": None, "none": True,
+            "root": os.path.realpath(root), "git": False, "passes": None, "blocks": 0,
+            "created": lib.now(), "created_ts": time.time(), "closed": lib.now(), "closed_by": "none",
+            "mark": {"kind": "unverified", "reason": args.reason, "ts": lib.now()},
+            "session_hint": lib.safe_id(os.environ.get(lib.SESSION_ENV)),
+        }
+        lib.write_json(lib.pending_path(root), ledger)
+        print("recorded: no check for this task (%s). Report the result as unverified." % args.reason)
+        return 0
+    try:
+        findings = lib.guard_findings(args.check, root, lib.load_guard_config())
+    except lib.GuardParseError as exc:
+        print("refused: the check command cannot be parsed (%s)" % exc, file=sys.stderr)
+        return 2
+    if findings:
+        # The gate re-runs this command with no prompt at every stop (REDTEAM M2).
+        print("refused: the check command would be stopped by the irreversible guard: %s. "
+              "A check must be safe to run again." % "; ".join(d for _, d in findings),
+              file=sys.stderr)
+        return 2
+    lib.prune_closed()
+    previous = [pl for pl in lib.ledgers_for_root(root) if pl[1].get("state") == "open"]
+    ledger = lib.new_ledger(args.check, root, args.timeout, args.protect or ())
+    path = lib.pending_path(root)
+    replaced = os.path.exists(path)
+    lib.write_json(path, ledger)
+    print("ledger open for %s" % root)
+    print("  check: %s  (timeout %d s)" % (ledger["check"], ledger["timeout_s"]))
+    if args.timeout != ledger["timeout_s"]:
+        print("  note: timeout clamped to %d s" % ledger["timeout_s"])
+    if ledger["git"]:
+        print("  baseline: %s; files matching the protect globs that exist now may not "
+              "change without `jordan-ledger authorise`" % (ledger["baseline"] or "no commit yet"))
+    else:
+        print("  not a git workspace: no path protection is claimed")
+    if replaced:
+        print("  replaced an unclaimed ledger for this workspace")
+    for old_path, old in previous:
+        if old_path != path:
+            print("  note: another open ledger exists for this workspace (%s, check: %s). "
+                  "It stays open and is gated separately unless the same owner claims this one."
+                  % (_owner(old_path, old), old.get("check")))
+    return 0
+
+
+def cmd_status(args, root):
+    cur = _current(root, want_open=False)
+    if not cur:
+        print("no ledger for %s" % root)
+        return 0
+    path, led = cur
+    print("ledger: %s (%s)" % (led.get("state"), _owner(path, led)))
+    print("  root: %s" % led.get("root"))
+    print("  check: %s  (timeout %s s)" % (led.get("check"), led.get("timeout_s")))
+    print("  passes: %s  blocks: %s" % (led.get("passes"), led.get("blocks")))
+    run = led.get("last_run")
+    if run:
+        print("  last run: %s at %s (exit %s)" % (run.get("verdict"), run.get("ts"), run.get("exit_code")))
+    if led.get("mark"):
+        print("  marked %s: %s" % (led["mark"].get("kind"), led["mark"].get("reason")))
+    if led.get("closed_by"):
+        print("  closed by: %s at %s" % (led["closed_by"], led.get("closed")))
+    for entry in led.get("authorised") or ():
+        print("  authorised: %s (%s)" % (entry.get("path"), entry.get("reason")))
+    if led.get("state") == "open":
+        changes = lib.protected_changes(led)
+        for rel, glob in (changes[0] if changes else ()):
+            print("  protected file changed without authorisation: %s (%s)" % (rel, glob))
+    return 0
+
+
+def _need_open(root):
+    cur = _current(root)
+    if not cur:
+        print("no open ledger for %s" % root, file=sys.stderr)
+    return cur
+
+
+def cmd_authorise(args, root):
+    cur = _need_open(root)
+    if not cur:
+        return 1
+    path, led = cur
+    target = args.path
+    full = os.path.realpath(target if os.path.isabs(target) else os.path.join(os.getcwd(), target))
+    # A path under the root is stored relative to it; anything else is taken
+    # as a glob relative to the root, as written.
+    if lib.is_inside(full, led["root"], strict=True):
+        rel = os.path.relpath(full, led["root"])
+    elif os.path.isabs(target) or os.path.exists(full) or not any(ch in target for ch in "*?"):
+        print("refused: %s is not a file inside the workspace %s" % (target, led["root"]), file=sys.stderr)
+        return 1
+    else:
+        rel = target
+    led.setdefault("authorised", []).append({"path": rel, "reason": args.reason, "ts": lib.now()})
+    lib.write_json(path, led)
+    print("authorised: %s (%s). This is recorded and shown when the task ends." % (rel, args.reason))
+    return 0
+
+
+def cmd_mark(args, root):
+    cur = _need_open(root)
+    if not cur:
+        return 1
+    path, led = cur
+    lib.close_ledger(path, led, "mark", {"kind": args.kind, "reason": args.reason, "ts": lib.now()})
+    print("ledger closed, marked %s: %s. Say so in your report." % (args.kind, args.reason))
+    return 0
+
+
+def cmd_close(args, root):
+    cur = _need_open(root)
+    if not cur:
+        return 1
+    path, led = cur
+    lib.close_ledger(path, led, "close")
+    print("ledger closed without running the check (passes: %s)" % led.get("passes"))
+    return 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="jordan-ledger", description=__doc__.split("\n\n")[0])
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("open", help="record the check for this task")
+    p.add_argument("--check", help="command that shows the work is right")
+    p.add_argument("--none", action="store_true", help="record that no check can exist (needs --reason)")
+    p.add_argument("--reason", help="with --none: why no check can exist")
+    p.add_argument("--protect", action="append", metavar="GLOB", help="extra protected glob")
+    p.add_argument("--timeout", type=int, default=lib.DEFAULT_TIMEOUT_S,
+                   help="seconds (default %d, max %d)" % (lib.DEFAULT_TIMEOUT_S, lib.MAX_TIMEOUT_S))
+    p.set_defaults(fn=cmd_open)
+    sub.add_parser("status", help="show the ledger for this workspace").set_defaults(fn=cmd_status)
+    for name in ("authorise", "authorize"):
+        p = sub.add_parser(name, help="allow a change to one protected path")
+        p.add_argument("path")
+        p.add_argument("--reason", required=True)
+        p.set_defaults(fn=cmd_authorise)
+    p = sub.add_parser("mark", help="close the ledger as unverified or impossible")
+    p.add_argument("kind", choices=["unverified", "impossible"])
+    p.add_argument("--reason", required=True)
+    p.set_defaults(fn=cmd_mark)
+    sub.add_parser("close", help="close the ledger without running the check").set_defaults(fn=cmd_close)
+    args = parser.parse_args(argv)
+    if getattr(args, "reason", "x") is not None and not str(getattr(args, "reason", "x")).strip():
+        parser.error("--reason must not be empty")
+    if args.cmd == "open":
+        if bool(args.check) == bool(args.none):
+            parser.error("open needs exactly one of --check '<command>' or --none --reason '<why>'")
+        if args.none and not args.reason:
+            parser.error("--none needs --reason '<why>'")
+        if args.check and args.reason is not None:
+            parser.error("--reason goes with --none")
+    return args.fn(args, lib.workspace_root(os.getcwd()))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,21 @@
+{
+  "name": "jordan",
+  "version": "3.0.0",
+  "description": "JORDAN V3: nine always-on problem-solving rules for coding agents, seven procedures read on their trigger, and hooks that run the named check before a stop counts as done.",
+  "author": {
+    "name": "aschanken"
+  },
+  "homepage": "https://github.com/aschanken/jordan-problem-solving-research",
+  "repository": "https://github.com/aschanken/jordan-problem-solving-research",
+  "keywords": [
+    "problem-solving",
+    "verification",
+    "hooks",
+    "agents"
+  ],
+  "agents": [
+    "./agents/jordan-builder.md",
+    "./agents/jordan-reader.md",
+    "./agents/jordan-refuter.md"
+  ]
+}
