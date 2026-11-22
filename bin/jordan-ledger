@@ -2,6 +2,7 @@
 """jordan-ledger — record the check for the task in hand (RULINGS R3).
 
     jordan-ledger open --check '<cmd>' [--protect <glob>]... [--timeout <s>]
+    jordan-ledger open --none --reason '<why>'      no check can exist
     jordan-ledger status
     jordan-ledger authorise <path> --reason '<why>'
     jordan-ledger mark unverified|impossible --reason '<why>'
@@ -65,6 +66,26 @@ def _current(root, want_open=True):
 
 
 def cmd_open(args, root):
+    if lib.home_in_workspace(root):
+        # Ledgers must not live in the workspace (RULINGS R3): they would show
+        # as untracked files and change the tree on every tool call.
+        print("refused: JORDAN_HOME (%s) is inside this workspace (%s) and not ignored by git. "
+              "Set JORDAN_HOME to a directory outside it, or add it to .gitignore."
+              % (lib.jordan_home(), root), file=sys.stderr)
+        return 2
+    if args.none:
+        # Recorded already closed: the gate has nothing to run, and the
+        # decision not to verify is on file with its reason.
+        ledger = {
+            "version": lib.VERSION, "state": "closed", "check": None, "none": True,
+            "root": os.path.realpath(root), "git": False, "passes": None, "blocks": 0,
+            "created": lib.now(), "created_ts": time.time(), "closed": lib.now(), "closed_by": "none",
+            "mark": {"kind": "unverified", "reason": args.reason, "ts": lib.now()},
+            "session_hint": lib.safe_id(os.environ.get(lib.SESSION_ENV)),
+        }
+        lib.write_json(lib.pending_path(root), ledger)
+        print("recorded: no check for this task (%s). Report the result as unverified." % args.reason)
+        return 0
     try:
         findings = lib.guard_findings(args.check, root, lib.load_guard_config())
     except lib.GuardParseError as exc:
@@ -95,8 +116,8 @@ def cmd_open(args, root):
         print("  replaced an unclaimed ledger for this workspace")
     for old_path, old in previous:
         if old_path != path:
-            print("  note: an open ledger already exists for this workspace (%s, check: %s); "
-                  "it is replaced when its owner claims this one"
+            print("  note: another open ledger exists for this workspace (%s, check: %s). "
+                  "It stays open and is gated separately unless the same owner claims this one."
                   % (_owner(old_path, old), old.get("check")))
     return 0
 
@@ -143,7 +164,13 @@ def cmd_authorise(args, root):
     full = os.path.realpath(target if os.path.isabs(target) else os.path.join(os.getcwd(), target))
     # A path under the root is stored relative to it; anything else is taken
     # as a glob relative to the root, as written.
-    rel = os.path.relpath(full, led["root"]) if lib.is_inside(full, led["root"], strict=True) else target
+    if lib.is_inside(full, led["root"], strict=True):
+        rel = os.path.relpath(full, led["root"])
+    elif os.path.isabs(target) or os.path.exists(full) or not any(ch in target for ch in "*?"):
+        print("refused: %s is not a file inside the workspace %s" % (target, led["root"]), file=sys.stderr)
+        return 1
+    else:
+        rel = target
     led.setdefault("authorised", []).append({"path": rel, "reason": args.reason, "ts": lib.now()})
     lib.write_json(path, led)
     print("authorised: %s (%s). This is recorded and shown when the task ends." % (rel, args.reason))
@@ -174,7 +201,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="jordan-ledger", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("open", help="record the check for this task")
-    p.add_argument("--check", required=True, help="command that shows the work is right")
+    p.add_argument("--check", help="command that shows the work is right")
+    p.add_argument("--none", action="store_true", help="record that no check can exist (needs --reason)")
+    p.add_argument("--reason", help="with --none: why no check can exist")
     p.add_argument("--protect", action="append", metavar="GLOB", help="extra protected glob")
     p.add_argument("--timeout", type=int, default=lib.DEFAULT_TIMEOUT_S,
                    help="seconds (default %d, max %d)" % (lib.DEFAULT_TIMEOUT_S, lib.MAX_TIMEOUT_S))
@@ -193,6 +222,13 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if getattr(args, "reason", "x") is not None and not str(getattr(args, "reason", "x")).strip():
         parser.error("--reason must not be empty")
+    if args.cmd == "open":
+        if bool(args.check) == bool(args.none):
+            parser.error("open needs exactly one of --check '<command>' or --none --reason '<why>'")
+        if args.none and not args.reason:
+            parser.error("--none needs --reason '<why>'")
+        if args.check and args.reason is not None:
+            parser.error("--reason goes with --none")
     return args.fn(args, lib.workspace_root(os.getcwd()))
 
 

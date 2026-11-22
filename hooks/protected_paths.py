@@ -5,8 +5,14 @@ Enforcement is the done-gate's diff at stop, which sees every tool. This hook
 only tells the agent sooner, with the same reason, when Edit or Write targets
 a protected file that existed when the ledger opened.
 
+With no ledger it carries the ledger prompt's first half (RULINGS R13): on an
+owner's first Edit or Write it adds one line of context saying no check is
+recorded, once, and records that the owner edited files so the stop hook can
+ask once more. It never denies an edit for that.
+
 Contract: stdin = PreToolUse JSON. Exit 0 silently to allow; to refuse, print
-one PreToolUse deny object and exit 0. No ledger, or any error: allow.
+one PreToolUse deny object and exit 0; the nudge is one PreToolUse object with
+additionalContext and no decision. Any error: allow.
 """
 import json
 import os
@@ -15,12 +21,31 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 
 
+def _nudge(lib, payload):
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict) or not isinstance(tool_input.get("file_path"), str):
+        return 0
+    state_path = lib.session_state_path(payload)
+    # The state file doubles as "already nudged": after the first edit this
+    # path costs two failed or successful stats and nothing else.
+    if not state_path or os.path.exists(state_path) or lib.has_ledger(payload):
+        return 0
+    if lib.ledger_required() == "off":
+        return 0
+    lib.write_json(state_path, {"edited": True, "nudged": True, "ts": lib.now()})
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "additionalContext": lib.LEDGER_NUDGE,
+    }}))
+    return 0
+
+
 def main():
     import jordan_lib as lib
     payload = lib.read_payload()
     owned = lib.load_owned(payload)  # one failed open() when there is no ledger
     if not owned:
-        return 0
+        return _nudge(lib, payload)
     _, led = owned
     if not led.get("git"):
         return 0  # no baseline, no protection claimed

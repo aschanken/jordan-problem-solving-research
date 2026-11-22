@@ -48,6 +48,11 @@ class HookBase(tl.Base):
         with open(path, "w") as fh:
             fh.write(text)
 
+    def config(self, **values):
+        os.makedirs(self.home, exist_ok=True)
+        with open(os.path.join(self.home, "config.json"), "w") as fh:
+            json.dump(values, fh)
+
     def assertSilent(self, res, msg=None):
         self.assertEqual((res.returncode, res.stdout, res.stderr), (0, "", ""), msg)
 
@@ -67,6 +72,7 @@ class RobustnessTests(HookBase):
             "session_start": {"session_id": "S1", "cwd": root, "hook_event_name": "SessionStart",
                               "source": "startup"},
         }
+        self.config(ledger_required="off")  # the ledger prompt has its own tests
         for name in ALL_HOOKS:
             if name == "session_start":
                 continue  # prints the kernel by design; covered in SessionStartTests
@@ -157,17 +163,24 @@ class DoneGateTests(HookBase):
         self.assertEqual(self.runs(), 1)
         self.assertEqual(self.read("S1.json")["blocks"], 1)
 
-    def test_block_cap_of_two_per_ledger(self):
+    def test_block_cap_of_two_ends_gating_for_the_ledger(self):
+        # R4 item 4 / refutation R-1: after two blocks nothing runs again,
+        # even when the tree keeps changing.
         root = self.repo()
         self.open(root, self.counter_check("false"))
-        self.assertEqual(self.stop(root).returncode, 2)
-        self.assertEqual(self.stop(root).returncode, 2)
+        for n in (1, 2):
+            self.write(root, "app.py", "x = %d\n" % (n + 1))
+            self.assertEqual(self.stop(root).returncode, 2)
+        self.write(root, "app.py", "x = 9\n")
         res = self.stop(root)
-        self.assertEqual(res.returncode, 0)
-        self.assertEqual(res.stderr, "")
-        self.assertIn("not blocked again", json.loads(res.stdout)["systemMessage"])
+        self.assertEqual((res.returncode, res.stderr), (0, ""))
+        self.assertIn("blocked 2 times", json.loads(res.stdout)["systemMessage"])
+        led = self.read("S1.json")
+        self.assertEqual((led["state"], led["closed_by"], led["passes"], led["blocks"]),
+                         ("closed", "cap", False, 2))
+        self.write(root, "app.py", "x = 10\n")
+        self.assertSilent(self.stop(root))
         self.assertEqual(self.runs(), 2)
-        self.assertEqual(self.read("S1.json")["blocks"], 2)
 
     def test_red_then_fixed_goes_green(self):
         root = self.repo()
@@ -185,8 +198,6 @@ class DoneGateTests(HookBase):
         self.open(root, self.counter_check("true"))
         self.write(root, "tests/test_app.py", "assert 1\n")
         self.assertEqual(self.stop(root).returncode, 2)
-        self.assertEqual(self.runs(), 1)
-        self.assertEqual(self.stop(root).returncode, 2)  # still unauthorised, still no re-run
         self.assertEqual(self.runs(), 1)
         self.cli("authorise", "tests/test_app.py", "--reason", "r", cwd=root)
         self.assertEqual(self.stop(root).returncode, 0)
@@ -259,9 +270,10 @@ class DoneGateTests(HookBase):
         self.assertSilent(self.stop(root, agent="A1"))
         self.assertEqual(self.runs(), 0)
 
-    def test_stop_claims_a_pending_ledger_when_no_tool_call_followed(self):
+    def test_stop_claims_a_hinted_pending_ledger_when_its_tool_event_was_missed(self):
         root = self.repo()
-        self.cli("open", "--check", self.counter_check("false"), cwd=root)
+        self.cli("open", "--check", self.counter_check("false"), cwd=root,
+                 env=dict(self.env, CLAUDE_CODE_SESSION_ID="S1"))
         self.assertEqual(self.stop(root).returncode, 2)
         self.assertEqual(self.ledger_files(), ["S1.json"])
 
@@ -275,11 +287,56 @@ class DoneGateTests(HookBase):
     def test_internal_error_allows_and_advises(self):
         root = self.repo()
         self.open(root, "true")
-        shutil.rmtree(root)
-        res = self.stop(self.tmp)
+        led = self.read("S1.json")
+        led["timeout_s"] = "soon"
+        tl.lib.write_json(os.path.join(self.home, "ledgers", "S1.json"), led)
+        res = self.stop(root)
         self.assertEqual(res.returncode, 0)
         self.assertIn("internal error", res.stderr)
         self.assertIn("NOT verified", json.loads(res.stdout)["systemMessage"])
+
+    def test_removed_workspace_closes_the_ledger_and_says_so_once(self):
+        # Refutation N-4.
+        root = self.repo()
+        self.open(root, "true")
+        shutil.rmtree(root)
+        res = self.stop(self.tmp)
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("NOT verified", json.loads(res.stdout)["systemMessage"])
+        self.assertEqual(self.read("S1.json")["closed_by"], "error")
+        self.assertSilent(self.stop(self.tmp))
+
+    def test_corrupt_ledger_is_ignored(self):
+        root = self.repo()
+        self.open(root, "false")
+        with open(os.path.join(self.home, "ledgers", "S1.json"), "w") as fh:
+            fh.write("{not json")
+        self.assertSilent(self.stop(root))
+
+    def test_stop_hook_active_as_string_is_honoured(self):
+        # Refutation N-5.
+        root = self.repo()
+        self.open(root, self.counter_check("false"))
+        self.assertSilent(self.stop(root, stop_hook_active="true"))
+        self.assertEqual(self.runs(), 0)
+
+    def test_check_that_leaves_a_detached_child_is_judged_by_its_exit(self):
+        # Refutation N-1: a setsid child holding stdout used to turn green into timeout.
+        root = self.repo()
+        self.open(root, "setsid sleep 20 & echo started", "--timeout", "5")
+        started = time.time()
+        self.assertSilent(self.stop(root))
+        self.assertLess(time.time() - started, 4)
+        self.assertEqual(self.read("S1.json")["last_run"]["verdict"], "green")
+
+    def test_large_check_output_keeps_only_the_tail(self):
+        # Refutation N-2: output is read from a file, last 64 KB only.
+        root = self.repo()
+        self.open(root, "yes 0123456789abcdef | head -c 20000000; echo LAST-LINE; exit 1")
+        res = self.stop(root)
+        self.assertEqual(res.returncode, 2)
+        self.assertIn("LAST-LINE", res.stderr)
+        self.assertLess(len(res.stderr), 12000)
 
 
 class ProtectedPathTests(HookBase):
@@ -315,6 +372,28 @@ class ProtectedPathTests(HookBase):
         res = self.stop(root)
         self.assertEqual(res.returncode, 2)
         self.assertIn("tests/test_app.py", res.stderr)
+
+    def test_check_that_rewrites_an_existing_test_is_caught(self):
+        # Refutation R-6(a): `jest -u`, `ruff --fix`, or plain sed in the check.
+        root = self.repo()
+        self.open(root, "echo '#' >> tests/test_app.py; true")
+        res = self.stop(root)
+        self.assertEqual(res.returncode, 2)
+        self.assertIn("tests/test_app.py", res.stderr)
+        self.assertEqual(self.read("S1.json")["state"], "open")
+
+    def test_index_flags_do_not_hide_a_protected_change(self):
+        # Refutation R-6(b): both flags make `git diff <baseline>` skip the file.
+        for flag in ("--assume-unchanged", "--skip-worktree"):
+            root = self.repo(name="r" + flag)
+            sid = "S" + flag.strip("-")
+            self.open(root, "true", sid=sid)
+            self.sh("git update-index %s tests/test_app.py" % flag, root)
+            self.assertSilent(self.stop(root, sid=sid, stop_hook_active=True))
+            self.write(root, "tests/test_app.py", "pass\n")
+            res = self.stop(root, sid=sid)
+            self.assertEqual(res.returncode, 2, flag)
+            self.assertIn("tests/test_app.py", res.stderr)
 
     def test_test_file_created_during_the_task_is_free(self):
         root = self.repo()
@@ -389,6 +468,7 @@ class ProtectedPathTests(HookBase):
 
     def test_early_notice_only_for_the_ledger_owner(self):
         root = self.repo()
+        self.config(ledger_required="off")
         self.open(root, "true", agent="A1")
         self.assertSilent(self.pre(root, "tests/test_app.py"))
         self.assertSilent(self.pre(root, "tests/test_app.py", sid="S2"))
@@ -424,6 +504,12 @@ class GuardTests(HookBase):
             "npm publish --dry-run", "cargo publish --dry-run", "npm run release",
             "gh release list", "twine check dist/*", "grep -r 'rm -rf /' docs",
             "cat > notes.md <<'EOF'\ndon't rm -rf ~/x or git push --force\nEOF",
+            # Refutation R-8: valid bash that used to be denied as unparsable.
+            "git commit -m \"$(echo \"don't\") release\"", "echo $'it\\'s' && git push",
+            "echo \"$(printf '%s' \"a (b\")\" && git push", "echo $\"hi\" && git push",
+            # Refutation R-7: in-workspace forms still pass.
+            "find . -name '*.pyc' -exec rm -rf {} +", "find . -name '*.pyc' | xargs rm -f",
+            "find build -type d -name tmp -exec rm -r {} \\;",
         ]:
             self.assertEqual(self.guard(cmd, self.root)[0], None, cmd)
 
@@ -446,6 +532,13 @@ class GuardTests(HookBase):
             ("python3 -m twine upload dist/*", "publish"), ("cargo publish", "publish"),
             ("gh release create v1.0.0 --notes x", "publish"),
             ("bash <<EOF\nrm -rf ~/x\nEOF", "outside"),
+            # Refutation R-7.
+            ("cat <<EOF | sh\nrm -rf /\nEOF", "outside"),
+            ("xargs rm -rf < list", "xargs"), ("find . -name x -print0 | xargs -0 rm -rf", "xargs"),
+            ("find / -name x -exec rm -rf {} +", "outside"),
+            ("find $UNSET -name x -exec rm -rf {} \\;", "cannot be resolved"),
+            ("echo \"$(rm -rf ~/x)\"", "outside"),
+            ("git commit -m \"$(echo \"don't\")\" && git push --force", "force-push"),
         ]:
             decision, reason = self.guard(cmd, self.root)
             self.assertEqual(decision, "ask", cmd)
@@ -477,6 +570,36 @@ class GuardTests(HookBase):
         self.assertEqual(self.guard("rm -rf \"${OUT}/cache\"", self.root)[0], None)
         self.env["OUT"] = "/srv/data"
         self.assertEqual(self.guard("rm -rf $OUT", self.root)[0], "ask")
+
+    def test_long_arguments_are_checked_in_linear_time(self):
+        # Refutation R-5: 600 KB quoted took 4.9 s, a 1 MB word 16.5 s (hook timeout 15 s).
+        for cmd in ("printf %s \"" + "release notes text " * 20000 + "\" > NOTES.md",
+                    "echo release " + "x" * 400000,
+                    "echo release \"" + "$a " * 100000 + "\""):
+            started = time.time()
+            self.assertEqual(self.guard(cmd, self.root)[0], None)
+            self.assertLess(time.time() - started, 2.0, cmd[:30])
+        decision, _ = self.guard("git push --force " + "x" * 400000, self.root)
+        self.assertEqual(decision, "ask")
+
+    def test_input_over_the_bound_is_not_tokenized(self):
+        # RULINGS R14: bounded before tokenizing; with a prefilter hit that denies.
+        started = time.time()
+        decision, reason = self.guard("echo release " + "'a' " * 2000000, self.root)
+        self.assertLess(time.time() - started, 5.0)
+        self.assertEqual(decision, "deny")
+        self.assertIn("too long to check", reason)
+        # A heredoc body is data and does not count toward the bound.
+        big = "cat > notes.txt <<'EOF'\n" + "release notes\n" * 100000 + "EOF"
+        self.assertEqual(self.guard(big, self.root)[0], None)
+        self.assertEqual(self.guard("echo hello " + "y" * 1000000, self.root)[0], None)
+
+    def test_deleting_a_symlink_is_judged_by_where_the_link_is(self):
+        # Refutation N-8: `rm -rf lnk` removes the link, not its target.
+        os.symlink("/usr", os.path.join(self.root, "lnk"))
+        self.assertEqual(self.guard("rm -rf lnk", self.root)[0], None)
+        self.assertEqual(self.guard("rm -rf lnk/", self.root)[0], "ask")
+        self.assertEqual(self.guard("rm -rf lnk/share", self.root)[0], "ask")
 
     def test_session_scratchpad_is_not_outside(self):
         scratch = os.path.join(self.tmp, "scratch")
@@ -543,6 +666,41 @@ class TraceTests(HookBase):
                          ("Bash", True, "ls", None))
         self.assertGreater(rows[0]["bytes"], 0)
 
+    def test_never_records_file_contents_and_is_owner_only(self):
+        # RULINGS R14 / refutation R-2: Write used to put `content` first.
+        secret = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY"
+        self.post(tool_name="Write", tool_input={"file_path": "/w/.env", "content": secret})
+        self.post(tool_name="Edit", tool_input={"file_path": "/w/a.py", "old_string": secret, "new_string": "x"})
+        self.post(tool_name="NotebookEdit", tool_input={"notebook_path": "/w/n.ipynb", "new_source": secret})
+        self.post(tool_name="Grep", tool_input={"pattern": secret, "path": "/w/src"})
+        self.post(tool_name="WebFetch", tool_input={"url": "https://x.invalid/?key=" + secret, "prompt": secret})
+        self.post(tool_name="Agent", tool_input={"prompt": secret})
+        path = os.path.join(self.home, "trace", "S1.jsonl")
+        with open(path) as fh:
+            raw = fh.read()
+        self.assertNotIn("wJalrXUtnFEMI", raw)
+        self.assertEqual([r["input"] for r in self.lines()],
+                         ["/w/.env", "/w/a.py", "/w/n.ipynb", "/w/src", "", ""])
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+        self.assertEqual(os.stat(os.path.dirname(path)).st_mode & 0o777, 0o700)
+
+    def test_bash_stdin_and_typed_credentials_are_not_recorded(self):
+        cases = {
+            "cat > .env <<EOF\nDB_PASSWORD=hunter2hunter2\nEOF": "hunter2",
+            "curl -H \"Authorization: Bearer ghp_abcdefghijklmnop1234\" https://x.invalid": "ghp_abcdefghijklmnop1234",
+            "API_KEY=sk-live-1234567890 ./deploy.sh": "sk-live-1234567890",
+            "mysql --password s3cr3tpw -e 'select 1'": "s3cr3tpw",
+            "git clone https://x.invalid/r.git # token: abc123def456": "abc123def456",
+        }
+        for command in cases:
+            self.post(tool_input={"command": command})
+        rows = self.lines()
+        for row, (command, secret) in zip(rows, cases.items()):
+            self.assertNotIn(secret, row["input"], command)
+            self.assertTrue(row["input"].startswith(command[:7]), row["input"])
+        self.assertIn("heredoc body omitted", rows[0]["input"])
+        self.assertIn("[redacted]", rows[1]["input"])
+
     def test_failure_event_and_agent_id(self):
         self.post(hook_event_name="PostToolUseFailure", agent_id="A1", error="boom", tool_response=None)
         self.post()
@@ -553,8 +711,8 @@ class TraceTests(HookBase):
     def test_never_more_than_200_characters_of_input(self):
         # m4: Write contents and long commands must not land in the trace.
         secret = "TOKEN=" + "s3cr3t" * 2000
-        self.post(tool_input={"command": "x" * 150 + secret})
-        self.post(tool_name="Write", tool_input={"file_path": "/a/b.py", "content": secret})
+        self.post(tool_input={"command": "x" * 150 + " " + "y" * 5000})
+        self.post(tool_name="Write", tool_input={"file_path": "/a/" + "b" * 5000, "content": secret})
         path = os.path.join(self.home, "trace", "S1.jsonl")
         with open(path) as fh:
             raw = fh.read().splitlines()
@@ -636,6 +794,16 @@ class SessionStartTests(HookBase):
             os.unlink(place)
             self.assertNotEqual(self.start().stdout, "", place)
 
+    def test_marker_in_a_parent_directory_silences(self):
+        # Refutation N-10: started in a subdirectory of a repo whose root has the block.
+        self.kernel()
+        with open(os.path.join(self.cwd, "CLAUDE.md"), "w") as fh:
+            fh.write("<!-- jordan-kernel:begin -->\nrules\n")
+        sub = os.path.join(self.cwd, "pkg", "deep")
+        os.makedirs(sub)
+        self.cwd = sub
+        self.assertSilent(self.start())
+
     def test_claude_md_without_marker_does_not_silence(self):
         self.kernel()
         with open(os.path.join(self.cwd, "CLAUDE.md"), "w") as fh:
@@ -652,6 +820,136 @@ class SessionStartTests(HookBase):
         if not os.path.isfile(path):
             self.skipTest("kernel.md not written yet")
         self.assertLess(os.path.getsize(path), 9000)
+
+
+class LedgerPromptTests(HookBase):
+    """RULINGS R13: the harness asks for a ledger when the agent recorded none."""
+
+    def edit(self, root, rel="app.py", sid="S1", agent=None, tool="Edit"):
+        payload = {"session_id": sid, "cwd": root, "hook_event_name": "PreToolUse", "tool_name": tool,
+                   "tool_input": {"file_path": os.path.join(root, rel)}}
+        if agent:
+            payload["agent_id"] = agent
+        return self.hook("protected_paths", payload)
+
+    def assertNudge(self, res):
+        self.assertEqual((res.returncode, res.stderr), (0, ""))
+        out = json.loads(res.stdout)["hookSpecificOutput"]
+        self.assertEqual(out["hookEventName"], "PreToolUse")
+        self.assertNotIn("permissionDecision", out)  # it never denies the edit
+        self.assertIn("jordan-ledger open --check", out["additionalContext"])
+        self.assertIn("jordan-ledger open --none --reason", out["additionalContext"])
+
+    def assertBlocked(self, res):
+        self.assertEqual((res.returncode, res.stdout), (2, ""))
+        self.assertIn("jordan-ledger open --check", res.stderr)
+        self.assertIn("jordan-ledger open --none --reason", res.stderr)
+
+    def test_default_mode_is_block(self):
+        self.assertEqual(tl.lib.DEFAULT_PROTECT[0], "test/**")  # library importable here
+        root = self.repo()
+        self.assertNudge(self.edit(root))
+        self.assertBlocked(self.stop(root))
+
+    def test_block_nudges_once_and_blocks_once_per_session(self):
+        root = self.repo()
+        self.config(ledger_required="block")
+        self.assertNudge(self.edit(root))
+        self.assertSilent(self.edit(root))
+        self.assertSilent(self.edit(root, tool="Write"))
+        self.assertBlocked(self.stop(root))
+        self.assertSilent(self.stop(root, stop_hook_active=True))
+        self.assertSilent(self.stop(root))          # a later turn: not asked again
+        self.assertSilent(self.edit(root))
+        self.assertSilent(self.stop(root))
+
+    def test_nudge_mode_never_blocks(self):
+        root = self.repo()
+        self.config(ledger_required="nudge")
+        self.assertNudge(self.edit(root))
+        self.assertSilent(self.edit(root))
+        self.assertSilent(self.stop(root))
+
+    def test_off_mode_does_nothing_and_writes_nothing(self):
+        root = self.repo()
+        self.config(ledger_required="off")
+        self.assertSilent(self.edit(root))
+        self.assertSilent(self.stop(root))
+        self.assertFalse(os.path.exists(os.path.join(self.home, "sessions")))
+
+    def test_unknown_config_value_means_the_default(self):
+        root = self.repo()
+        self.config(ledger_required="sometimes")
+        self.assertNudge(self.edit(root))
+        self.assertBlocked(self.stop(root))
+
+    def test_session_that_only_read_files_is_never_prompted(self):
+        root = self.repo()
+        for tool, tool_input in (("Read", {"file_path": os.path.join(root, "app.py")}),
+                                 ("Bash", {"command": "ls"}), ("Grep", {"pattern": "x"})):
+            self.hook("trace", {"session_id": "S1", "cwd": root, "hook_event_name": "PostToolUse",
+                                "tool_name": tool, "tool_input": tool_input})
+        self.assertSilent(self.stop(root))
+        self.assertSilent(self.stop(root))
+        self.assertFalse(os.path.exists(os.path.join(self.home, "sessions")))
+
+    def test_session_with_an_open_ledger_is_never_prompted(self):
+        root = self.repo()
+        self.open(root, "true")
+        self.assertSilent(self.edit(root))
+        self.assertSilent(self.stop(root))          # the gate ran and closed it green
+        self.assertEqual(self.read("S1.json")["closed_by"], "gate")
+        self.assertSilent(self.edit(root))          # ledger on file, closed: still no prompt
+        self.assertSilent(self.stop(root))
+        self.assertFalse(os.path.exists(os.path.join(self.home, "sessions")))
+
+    def test_ledger_opened_after_the_nudge_stops_the_block(self):
+        root = self.repo()
+        self.assertNudge(self.edit(root))
+        self.open(root, "true")
+        self.assertSilent(self.stop(root))
+        self.assertEqual(self.read("S1.json")["passes"], True)
+        self.assertSilent(self.stop(root))
+
+    def test_open_none_satisfies_the_prompt(self):
+        root = self.repo()
+        self.assertNudge(self.edit(root))
+        self.cli("open", "--none", "--reason", "prose only", cwd=root)
+        self.claim(root, command="jordan-ledger open --none --reason 'prose only'")
+        self.assertSilent(self.stop(root))
+        self.assertEqual(self.read("S1.json")["mark"]["kind"], "unverified")
+
+    def test_subagent_is_nudged_but_never_blocked(self):
+        root = self.repo()
+        self.assertNudge(self.edit(root, agent="A1"))
+        self.assertSilent(self.edit(root, agent="A1"))
+        self.assertSilent(self.stop(root, agent="A1"))
+        # Nor is the lead blocked for edits its subagent made.
+        self.assertSilent(self.stop(root))
+        # Each owner is nudged once: the lead's own first edit still gets it.
+        self.assertNudge(self.edit(root))
+        self.assertNudge(self.edit(root, agent="A2"))
+
+    def test_block_respects_background_tasks_and_stop_hook_active(self):
+        root = self.repo()
+        self.edit(root)
+        self.assertSilent(self.stop(root, background_tasks=[{"id": "b"}]))
+        self.assertSilent(self.stop(root, stop_hook_active=True))
+        self.assertBlocked(self.stop(root))
+
+    def test_sessions_are_independent(self):
+        root = self.repo()
+        self.edit(root, sid="S1")
+        self.assertSilent(self.stop(root, sid="S2"))
+        self.assertNudge(self.edit(root, sid="S2"))
+        self.assertBlocked(self.stop(root, sid="S1"))
+        self.assertBlocked(self.stop(root, sid="S2"))
+
+    def test_nudge_does_not_replace_the_protected_path_denial(self):
+        root = self.repo()
+        self.open(root, "true")
+        res = self.edit(root, rel="tests/test_app.py")
+        self.assertEqual(json.loads(res.stdout)["hookSpecificOutput"]["permissionDecision"], "deny")
 
 
 if __name__ == "__main__":

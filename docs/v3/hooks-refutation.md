@@ -218,3 +218,40 @@ stays open and red. R3 lists this as a known limit; the message that it was repl
 
 Not run: a ledger file owned by another uid (the probes ran as root, so ownership could not be
 exercised; the code does no ownership check).
+
+## Resolution
+
+Date: 2026-11-22, by the hooks builder. Each REFUTED item was first reproduced
+from its script against the tree as committed, then fixed. The regression
+tests named below were run against the pre-fix `hooks/` and `bin/` (a `git
+archive HEAD` copy): 33 tests failed there, and all pass on the fixed tree.
+
+| Item | Outcome | What changed | Regression test |
+|---|---|---|---|
+| R-1 | fixed | At two blocks the next stop closes the ledger (`closed_by: cap`, `passes: false`), prints one message and runs nothing; later stops find no open ledger. Repro now gives `runs=2`. | `test_block_cap_of_two_ends_gating_for_the_ledger` |
+| R-2 | fixed | `input` is the path a file tool was given (`file_path`, `path`, `notebook_path`) or the first 200 characters of a Bash command with heredoc bodies dropped and common credential shapes replaced by `[redacted]`. No other argument is recorded. File mode 0600, directory 0700. | `test_never_records_file_contents_and_is_owner_only`, `test_bash_stdin_and_typed_credentials_are_not_recorded` |
+| R-3 | fixed | A SubagentStop never claims. The main Stop claims only a ledger hinted for its session. Repro: subagent exit 0, main stop exit 2, `A.json`. | `test_subagent_stop_never_takes_the_parents_pending_ledger` |
+| R-4 | fixed | A Stop never claims an unhinted ledger. An ordinary tool call claims only within 10 s of the open and only from inside the workspace. The call that ran `jordan-ledger` claims from the workspace or a directory above it (unhinted), or from anywhere (hinted for its session). | `test_stop_never_claims_an_unhinted_pending_ledger`, `test_other_tool_call_claims_only_within_the_grace_window`, `test_opener_claims_from_a_directory_above_the_workspace`, `test_hinted_ledger_is_claimed_by_its_session_from_any_cwd` |
+| R-5 | fixed | The tokenizer takes runs of ordinary characters in one step and joins once per word. After heredoc bodies are removed, a command over 500,000 characters is not tokenized; with a prefilter hit it is denied as too long to check. Both repro commands now take 0.03 s. | `test_long_arguments_are_checked_in_linear_time`, `test_input_over_the_bound_is_not_tokenized` |
+| R-6a | fixed | Protected paths are compared after the check runs. | `test_check_that_rewrites_an_existing_test_is_caught` |
+| R-6b | fixed | Files flagged assume-unchanged or skip-worktree that match a protect glob are compared to the baseline blob directly. | `test_index_flags_do_not_hide_a_protected_change` |
+| R-7 | fixed | A heredoc body is kept when a shell appears anywhere on its line. `xargs rm -r` is stopped as unresolvable. `find <paths> -exec rm -r` is judged by its start paths. | rows in `test_stops_and_asks_in_default_mode`; in-workspace forms in `test_passes` |
+| R-8 | fixed in part | `$( )` inside double quotes is a fresh quoting context; `$'…'` and `$"…"` are parsed. Both repro commands now pass. A command that still cannot be parsed after a prefilter hit is denied in every mode: that is R6 as written, and the reason tells the agent to simplify the command. | rows in `test_passes` and `test_stops_and_asks_in_default_mode`; `test_prefilter_matched_parse_failure_denies` |
+| R-9 | fixed for ledgers; stands for the trace | `open` refuses when `$JORDAN_HOME` is inside the workspace and git does not ignore it, and says to move it or ignore it. The trace hook still writes under `$JORDAN_HOME` wherever that is: finding the workspace would cost a git call on every tool call. With `~` as a repo, ignore `.claude/` or set `JORDAN_HOME`. | `test_open_refuses_when_jordan_home_is_inside_the_workspace` |
+| R-10 | fixed (message); limit stands | The note now says the other ledger stays open and is gated separately. A `mark` typed with no session id in the environment still acts on the most recent ledger for the root and prints which; inside Claude Code the CLI sees `CLAUDE_CODE_SESSION_ID` and prefers its own session's ledger. R3 lists this as a known limit. | `test_second_session_note_does_not_claim_replacement` |
+
+NOTE items:
+
+- N-1 fixed: check output goes to a file and the verdict follows the shell's exit (`test_check_that_leaves_a_detached_child_is_judged_by_its_exit`).
+- N-2 fixed: only the last 64 KB of output is read (`test_large_check_output_keeps_only_the_tail`).
+- N-4 fixed: a ledger whose root is gone is closed (`closed_by: error`) with one message; a corrupt ledger file is ignored (`test_removed_workspace_closes_the_ledger_and_says_so_once`, `test_corrupt_ledger_is_ignored`).
+- N-5 fixed: `"true"` is honoured (`test_stop_hook_active_as_string_is_honoured`).
+- N-7 fixed: `authorise` refuses a path that is not inside the workspace; a relative glob is still accepted (`test_authorise_refuses_a_path_outside_the_workspace`).
+- N-8 fixed for the symlink case (`test_deleting_a_symlink_is_judged_by_where_the_link_is`). Documented behaviour: in a non-git project the workspace is the cwd, so `rm -rf ../build` from a subdirectory asks; `cd "$(mktemp -d)" && rm -rf x` asks because the directory cannot be known before the shell runs.
+- N-10 fixed: the marker is looked for in `CLAUDE.md` and `.claude/CLAUDE.md` of every directory above cwd (`test_marker_in_a_parent_directory_silences`).
+- N-3 documented: a protected file that was dirty at `open` is protected in the state it had at `open`; reverting it is a change. `authorise` is the way through.
+- N-6 documented: per R3, a closed ledger gates nothing. With R13 a session that has any ledger on file is not prompted again.
+- N-9 documented: outside R6's three classes. `find … -delete` and `git clean` do not match the prefilter and are not examined.
+- N-11 documented: per R7 the trace is written for every tool call, ledger or not.
+
+Not addressed: a ledger file owned by another uid (the refuter's "not run" item). The code does no ownership check; `$JORDAN_HOME` directories are created 0700.

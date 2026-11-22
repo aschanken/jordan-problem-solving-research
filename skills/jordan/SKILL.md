@@ -25,7 +25,7 @@ When a trigger occurs, read that one file, follow its steps, and return to the k
 
 ## With the hooks installed
 
-- `jordan-ledger open --check '<command>'` records the check. When you stop, the done-gate runs it.
+- `jordan-ledger open --check '<command>'` records the check. When you stop, the done-gate runs it. If no check can exist: `jordan-ledger open --none --reason '<why>'`.
 - If the check cannot go green: `jordan-ledger mark unverified --reason '<why>'` or `jordan-ledger mark impossible --reason '<why>'`.
 - Tests, CI files and files that define the check are protected if they existed at the start. For a legitimate edit: `jordan-ledger authorise <path> --reason '<why>'`. The reason is shown to the reader.
 

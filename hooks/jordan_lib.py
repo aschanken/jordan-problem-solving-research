@@ -9,6 +9,8 @@ State lives outside the workspace (REDTEAM B2), under $JORDAN_HOME:
     ledgers/<session_id>[.<agent_id>].json   one per owner
     ledgers/pending-<key>.json               opened by the CLI, not yet claimed
     trace/<session_id>.jsonl
+    sessions/<session_id>[.<agent_id>].json  ledger-prompt state (R13)
+    config.json                              {"ledger_required": "block"|"nudge"|"off"}
     guard.json                               optional opt-ins for the guard
 """
 import json
@@ -28,8 +30,9 @@ MAX_BLOCKS = 2
 # An unclaimed pending ledger older than this is somebody's abandoned open;
 # claiming it would gate a new session with an old check (REDTEAM B1).
 PENDING_MAX_AGE_S = 900
-# A hook event that did not itself run jordan-ledger claims a pending ledger
-# only after this long, so the agent that ran `open` normally claims first.
+# A tool call that did not itself run jordan-ledger may claim a pending ledger
+# only this soon after `open` (the open was run through a script or wrapper).
+# Later than this, an unrelated session in the same repo would be taking it.
 PENDING_GRACE_S = 10
 SESSION_ENV = "CLAUDE_CODE_SESSION_ID"  # seen in the Bash tool env, CLI 2.1.330
 SNAPSHOT_CAP = 5000
@@ -74,6 +77,42 @@ def ledgers_dir():
 
 def trace_dir():
     return os.path.join(jordan_home(), "trace")
+
+
+def sessions_dir():
+    return os.path.join(jordan_home(), "sessions")
+
+
+def owner_name(session_id, agent_id=None):
+    """File stem for an owner: the session, or the session plus the agent."""
+    sid, aid = safe_id(session_id), safe_id(agent_id)
+    if not sid or (agent_id and not aid):
+        return None
+    return "%s.%s" % (sid, aid) if aid else sid
+
+
+def ledger_required():
+    """R13 mode. Unknown or missing values mean the default, "block"."""
+    mode = (read_json(os.path.join(jordan_home(), "config.json")) or {}).get("ledger_required")
+    return mode if mode in ("block", "nudge", "off") else "block"
+
+
+LEDGER_NUDGE = (
+    "JORDAN: no check is recorded for this task. Record one now: "
+    "jordan-ledger open --check '<command>' (the done-gate runs it when you stop). "
+    "If no check can exist: jordan-ledger open --none --reason '<why>'."
+)
+
+
+def session_state_path(payload):
+    name = owner_name(payload.get("session_id"), payload.get("agent_id") or None)
+    return os.path.join(sessions_dir(), name + ".json") if name else None
+
+
+def has_ledger(payload):
+    """True when this owner has any ledger on file, open or closed."""
+    path = owner_path(payload.get("session_id"), payload.get("agent_id") or None)
+    return bool(path) and os.path.exists(path)
 
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -291,6 +330,19 @@ def protected_changes(ledger):
     for rel, sha in snap.items():
         if file_sha(os.path.join(root, rel)) != sha:
             changed.add(rel)
+    # assume-unchanged and skip-worktree hide a file from `git diff`; compare
+    # those files to the baseline blob directly.
+    if baseline:
+        for entry in _zlist(git(root, "ls-files", "-v", "-z")[1]):
+            tag, _, rel = entry.partition(" ")
+            if not (tag.islower() or tag == "S") or rel in snap or rel in changed:
+                continue
+            if not match_glob(rel, globs):
+                continue
+            want = git(root, "rev-parse", "-q", "--verify", "%s:%s" % (baseline, rel))[1].strip()
+            have = git(root, "hash-object", "--", rel)[1].strip()
+            if want and want != have:
+                changed.add(rel)
     unauth, auth = [], []
     for rel in sorted(changed):
         entry = is_authorised(ledger, rel)
@@ -313,10 +365,8 @@ def pending_path(root):
 
 
 def owner_path(session_id, agent_id=None):
-    sid, aid = safe_id(session_id), safe_id(agent_id)
-    if not sid or (agent_id and not aid):
-        return None
-    return os.path.join(ledgers_dir(), "%s.%s.json" % (sid, aid) if aid else "%s.json" % sid)
+    name = owner_name(session_id, agent_id)
+    return os.path.join(ledgers_dir(), name + ".json") if name else None
 
 
 def load_owned(payload):
@@ -342,20 +392,27 @@ def _age_s(path):
         return 1e9
 
 
-def claim_pending(payload, immediate):
-    """Rename a pending ledger for this workspace to its owner's name (R3).
+def claim_pending(payload, how):
+    """Rename a pending ledger to its owner's name (R3, R14).
 
     The CLI cannot see who ran it, so `open` leaves a pending file keyed by the
-    workspace root, and the first hook event from inside that root claims it.
-    `immediate` is true for the event that ran jordan-ledger and for the stop;
-    other events wait PENDING_GRACE_S so a sibling agent's tool call does not
-    take the ledger first. A session hint recorded by the CLI, when present,
-    must match.
+    workspace root. Who may take it depends on `how` the event relates to it:
+
+      "opener"  the tool call whose command ran jordan-ledger. Claims a ledger
+                hinted for this session from any cwd; an unhinted one when the
+                call's cwd is the workspace or a directory above it.
+      "tool"    any other tool call inside the workspace: only within
+                PENDING_GRACE_S of the open (it was run through a wrapper).
+      "stop"    the main session's Stop: only a ledger hinted for this session.
+                A subagent shares its parent's session id, so a SubagentStop
+                never claims; an unhinted ledger is never claimed by a stop.
     """
     sid = safe_id(payload.get("session_id"))
     cwd = payload.get("cwd")
     ldir = ledgers_dir()
     if not sid or not isinstance(cwd, str) or not os.path.isdir(ldir):
+        return None
+    if how == "stop" and payload.get("agent_id"):
         return None
     try:
         names = [n for n in os.listdir(ldir) if n.startswith("pending-") and n.endswith(".json")]
@@ -364,13 +421,18 @@ def claim_pending(payload, immediate):
     for name in names:
         src = os.path.join(ldir, name)
         ledger = read_json(src)
-        if not ledger or not ledger.get("root") or not is_inside(cwd, ledger["root"]):
+        if not ledger or not ledger.get("root"):
             continue
-        hint = ledger.get("session_hint")
-        if hint and hint != sid:
+        root, hint, age = ledger["root"], ledger.get("session_hint"), _age_s(src)
+        if age > PENDING_MAX_AGE_S or (hint and hint != sid):
             continue
-        age = _age_s(src)
-        if age > PENDING_MAX_AGE_S or (not immediate and age < PENDING_GRACE_S):
+        if how == "opener":
+            ok = bool(hint) or is_inside(cwd, root) or is_inside(root, cwd)
+        elif how == "tool":
+            ok = age <= PENDING_GRACE_S and is_inside(cwd, root)
+        else:
+            ok = bool(hint)
+        if not ok:
             continue
         dst = owner_path(sid, payload.get("agent_id") or None)
         if not dst:
@@ -415,6 +477,18 @@ def ledgers_for_root(root, session_hint=None):
     return found
 
 
+def home_in_workspace(root):
+    """True when $JORDAN_HOME sits inside the workspace and git does not ignore
+    it (a dotfiles repo at ~). Ledgers and the trace would then show up as
+    untracked files and change the tree on every tool call."""
+    home = jordan_home()
+    if not is_inside(home, root):
+        return False
+    if not is_git(root):
+        return True
+    return git(root, "check-ignore", "-q", home)[0] != 0
+
+
 def new_ledger(check, root, timeout_s, extra_protect=()):
     root = os.path.realpath(root)
     in_git = is_git(root)
@@ -445,6 +519,13 @@ def close_ledger(path, ledger, by, mark=None):
 
 def prune_closed(max_age_s=7 * 86400):
     """Called by `open`: closed ledgers are a record, not an archive."""
+    sdir = sessions_dir()
+    try:
+        for name in os.listdir(sdir):
+            if _age_s(os.path.join(sdir, name)) >= max_age_s:
+                os.unlink(os.path.join(sdir, name))
+    except OSError:
+        pass
     ldir = ledgers_dir()
     try:
         names = os.listdir(ldir)
@@ -496,10 +577,11 @@ class GuardParseError(Exception):
 
 
 class _Word:
-    __slots__ = ("text", "dollar", "glob", "tilde")
+    __slots__ = ("parts", "text", "dollar", "glob", "tilde")
 
     def __init__(self):
-        self.text, self.dollar, self.glob, self.tilde = "", False, False, False
+        self.parts, self.text = [], ""
+        self.dollar, self.glob, self.tilde = False, False, False
 
 
 def _strip_heredocs(cmd):
@@ -517,7 +599,8 @@ def _strip_heredocs(cmd):
         i += 1
         for m in _HEREDOC.finditer(line):
             delim = m.group(2) or m.group(3) or m.group(4)
-            keep = bool(_FEEDS_SHELL.search(line[:m.start()]))
+            # `bash <<EOF` and `cat <<EOF | sh` both run the body.
+            keep = bool(_FEEDS_SHELL.search(line))
             j, body = i, []
             while j < len(lines):
                 text = lines[j].lstrip("\t") if m.group(1) else lines[j]
@@ -533,35 +616,105 @@ def _strip_heredocs(cmd):
     return "\n".join(out)
 
 
+# Runs of characters with no special meaning are taken in one step, so a long
+# argument costs time in proportion to its length, not its square.
+_PLAIN = re.compile(r"[^\\'\"\s#`;|&()<>$*?\[~]+")
+_DQ_PLAIN = re.compile(r'[^"\\$`]+')
+# Longer than this is not tokenized at all (R14): the hook has a 15 s timeout.
+GUARD_MAX_CHARS = 500000
+
+
+def _dq_end(cmd, i):
+    """i is just past an opening double quote; returns the index past its close."""
+    n = len(cmd)
+    while i < n:
+        c = cmd[i]
+        if c == "\\":
+            i += 2
+        elif c == '"':
+            return i + 1
+        elif c == "$" and cmd.startswith("(", i + 1):
+            i = _subst_end(cmd, i + 1)
+        else:
+            i += 1
+    raise GuardParseError("unterminated double quote")
+
+
+def _subst_end(cmd, i):
+    """cmd[i] is the "(" of "$("; returns the index past the matching ")".
+
+    Quotes inside a substitution are a fresh quoting context, which is why
+    "$(echo "a")" is one word and not three.
+    """
+    depth, n = 0, len(cmd)
+    while i < n:
+        c = cmd[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == "'":
+            j = cmd.find("'", i + 1)
+            if j < 0:
+                raise GuardParseError("unterminated single quote")
+            i = j + 1
+            continue
+        if c == '"':
+            i = _dq_end(cmd, i + 1)
+            continue
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    raise GuardParseError("unterminated $(")
+
+
 def tokenize(cmd):
     """Shell words and operators. Raises GuardParseError on an open quote.
 
-    Returns a list of _Word and str (operator). Each word records whether it
-    held an unquoted expansion, glob or leading tilde, which quoting removes.
+    Returns (tokens, substitutions). Tokens are _Word or str (operator); each
+    word records whether it held an unquoted expansion, glob or leading tilde.
+    Substitutions are the commands found inside $( ), to be scanned as well.
     """
-    toks, cur, i, n = [], None, 0, len(cmd)
+    toks, subs, cur, i, n = [], [], None, 0, len(cmd)
 
     def flush():
         nonlocal cur
         if cur is not None:
+            cur.text = "".join(cur.parts)
             toks.append(cur)
             cur = None
 
+    def substitution(start):
+        end = _subst_end(cmd, start + 1)
+        subs.append(cmd[start + 2:end - 1])
+        cur.dollar = True
+        cur.parts.append(cmd[start:end])
+        return end
+
     while i < n:
+        m = _PLAIN.match(cmd, i)
+        if m:
+            cur = cur or _Word()
+            cur.parts.append(m.group())
+            i = m.end()
+            continue
         c = cmd[i]
         if c == "\\":
             if i + 1 < n and cmd[i + 1] == "\n":
                 i += 2
                 continue
             cur = cur or _Word()
-            cur.text += cmd[i + 1] if i + 1 < n else ""
+            cur.parts.append(cmd[i + 1] if i + 1 < n else "")
             i += 2
         elif c == "'":
             j = cmd.find("'", i + 1)
             if j < 0:
                 raise GuardParseError("unterminated single quote")
             cur = cur or _Word()
-            cur.text += cmd[i + 1:j]
+            cur.parts.append(cmd[i + 1:j])
             i = j + 1
         elif c == '"':
             cur = cur or _Word()
@@ -569,17 +722,46 @@ def tokenize(cmd):
             while True:
                 if i >= n:
                     raise GuardParseError("unterminated double quote")
+                m = _DQ_PLAIN.match(cmd, i)
+                if m:
+                    cur.parts.append(m.group())
+                    i = m.end()
+                    continue
                 d = cmd[i]
                 if d == '"':
                     i += 1
                     break
-                if d == "\\" and i + 1 < n and cmd[i + 1] in '"\\$`\n':
-                    cur.text += "" if cmd[i + 1] == "\n" else cmd[i + 1]
-                    i += 2
-                    continue
-                if d in "$`":
+                if d == "\\":
+                    if i + 1 < n and cmd[i + 1] in '"\\$`\n':
+                        cur.parts.append("" if cmd[i + 1] == "\n" else cmd[i + 1])
+                        i += 2
+                    else:
+                        cur.parts.append(d)
+                        i += 1
+                elif d == "$" and cmd.startswith("(", i + 1):
+                    i = substitution(i)
+                else:  # "$" or a backtick
                     cur.dollar = True
-                cur.text += d
+                    cur.parts.append(d)
+                    i += 1
+        elif c == "$":
+            cur = cur or _Word()
+            nxt = cmd[i + 1:i + 2]
+            if nxt == "(":
+                i = substitution(i)
+            elif nxt == "'":  # $'...': backslash escapes, no expansion
+                j = i + 2
+                while j < n and cmd[j] != "'":
+                    j += 2 if cmd[j] == "\\" else 1
+                if j >= n:
+                    raise GuardParseError("unterminated $' quote")
+                cur.parts.append(cmd[i + 2:j])
+                i = j + 1
+            elif nxt == '"':  # $"...": a double-quoted string
+                i += 1
+            else:
+                cur.dollar = True
+                cur.parts.append(c)
                 i += 1
         elif c in " \t\r":
             flush()
@@ -596,7 +778,7 @@ def tokenize(cmd):
             # inside the backticks is a command of its own.
             cur = cur or _Word()
             cur.dollar = True
-            cur.text += "`"
+            cur.parts.append("`")
             flush()
             toks.append(";")
             i += 1
@@ -612,14 +794,12 @@ def tokenize(cmd):
                 cur = _Word()
                 if c == "~":
                     cur.tilde = True
-            if c == "$":
-                cur.dollar = True
-            elif c in "*?[":
+            if c in "*?[":
                 cur.glob = True
-            cur.text += c
+            cur.parts.append(c)
             i += 1
     flush()
-    return toks
+    return toks, subs
 
 
 def _simple_commands(toks):
@@ -691,8 +871,12 @@ class _Ctx:
         self.assigned = set(re.findall(r"(?:^|[\s;&|(])([A-Za-z_][A-Za-z0-9_]*)=", command))
 
 
-def _resolve(word, ctx):
-    """Absolute path a word names, or None when it cannot be known here."""
+def _resolve(word, ctx, leaf=False):
+    """Absolute path a word names, or None when it cannot be known here.
+
+    With leaf=True the last component is not followed if it is a symlink:
+    `rm -rf link` removes the link, not what it points to.
+    """
     text, failed = word.text, []
     if word.dollar:
         def repl(m):
@@ -727,25 +911,74 @@ def _resolve(word, ctx):
         if ctx.cwd is None:
             return None
         text = os.path.join(ctx.cwd, text)
+    if leaf and not word.glob and not text.endswith("/"):
+        head, tail = os.path.split(os.path.normpath(text))
+        if tail:
+            return os.path.join(os.path.realpath(head), tail)
     return os.path.realpath(text)
 
 
+def _within(path, root, strict=False):
+    """is_inside for paths _resolve already made real. It must not follow the
+    last component again: that may be the symlink being removed."""
+    if path == root:
+        return not strict
+    return path.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def _rm_recursive(args):
+    return any(f == "--recursive" or (not f.startswith("--") and ("r" in f or "R" in f))
+               for f in _flags(args))
+
+
+def _inner_rm(argv):
+    """Arguments of a recursive `rm` named inside xargs or find -exec, else None."""
+    for k, word in enumerate(argv):
+        if os.path.basename(word.text) == "rm":
+            return argv[k + 1:] if _rm_recursive(argv[k + 1:]) else None
+    return None
+
+
+def _check_xargs(argv, ctx, out):
+    if _inner_rm(argv[1:]) is not None:
+        out.append(("delete", "recursive delete through xargs, whose targets cannot be "
+                    "resolved before it runs"))
+
+
+def _check_find(argv, ctx, out):
+    k = next((k for k, w in enumerate(argv) if w.text in ("-exec", "-execdir", "-ok")), None)
+    if k is None or _inner_rm(argv[k + 1:]) is None:
+        return
+    starts = []
+    for word in argv[1:]:
+        if word.text.startswith("-") or word.text in ("!", "("):
+            break
+        starts.append(word)
+    for word in starts or [None]:
+        if word is None:
+            path, shown = ctx.cwd, "."
+        else:
+            path, shown = _resolve(word, ctx), word.text
+        if path is None:
+            out.append(("delete", "recursive delete under find '%s', which cannot be resolved" % shown))
+        elif not (is_inside(path, ctx.root) or any(is_inside(path, r) for r in ctx.safe_roots)):
+            out.append(("delete", "recursive delete under find '%s' (%s), which is outside the "
+                        "workspace %s" % (shown, path, ctx.root)))
+
+
 def _check_rm(argv, ctx, out):
-    flags = _flags(argv[1:])
-    recursive = any(f in ("--recursive",) or (not f.startswith("--") and ("r" in f or "R" in f))
-                    for f in flags)
-    if not recursive:
+    if not _rm_recursive(argv[1:]):
         return
     for word in _positional(argv[1:]):
-        path = _resolve(word, ctx)
+        path = _resolve(word, ctx, leaf=True)
         if path is None:
             out.append(("delete", "recursive delete of '%s', whose target cannot be resolved "
                         "before the shell expands it" % word.text))
             continue
         # A glob deletes the directory's contents; a plain path deletes itself,
         # so the workspace root is only acceptable as a glob's directory.
-        ok = is_inside(path, ctx.root, strict=not word.glob)
-        ok = ok or any(is_inside(path, r, strict=not word.glob) for r in ctx.safe_roots)
+        ok = _within(path, ctx.root, strict=not word.glob)
+        ok = ok or any(_within(path, r, strict=not word.glob) for r in ctx.safe_roots)
         if not ok:
             out.append(("delete", "recursive delete of '%s' (%s), which is outside the "
                         "workspace %s" % (word.text, path, ctx.root)))
@@ -809,7 +1042,14 @@ def _check_publish(argv, base, out):
 
 
 def _scan(command, ctx, out, depth=0):
-    for raw in _simple_commands(tokenize(_strip_heredocs(command))):
+    toks, subs = tokenize(command)
+    for inner in subs:
+        if depth < 3:
+            # A substitution runs in a subshell: its `cd` must not leak out.
+            saved = ctx.cwd
+            _scan(inner, ctx, out, depth + 1)
+            ctx.cwd = saved
+    for raw in _simple_commands(toks):
         argv = _strip_wrappers(raw)
         if not argv:
             continue
@@ -821,6 +1061,10 @@ def _scan(command, ctx, out, depth=0):
             _check_rm(argv, ctx, out)
         elif base == "git":
             _check_git(argv, ctx, out)
+        elif base == "xargs":
+            _check_xargs(argv, ctx, out)
+        elif base == "find":
+            _check_find(argv, ctx, out)
         elif base in _SHELLS or base == "eval":
             # One level of indirection is how most accidents are written.
             inner = None
@@ -861,5 +1105,8 @@ def guard_findings(command, cwd, config=None, scratch=None, env=None):
             for p in [scratch] + list(config.get("allow_delete_roots") or [])
             if isinstance(p, str) and os.path.isabs(os.path.expanduser(p))]
     out = []
+    command = _strip_heredocs(command)
+    if len(command) > GUARD_MAX_CHARS:
+        raise GuardParseError("it is longer than %d characters, too long to check" % GUARD_MAX_CHARS)
     _scan(command, _Ctx(command, cwd, root, safe, config, os.environ if env is None else env), out)
     return out

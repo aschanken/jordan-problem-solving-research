@@ -4,10 +4,15 @@
 Runs only when all of these hold, else exits 0 with no output:
   1. an open ledger is owned by this session_id and agent_id;
   2. no background tasks are running;
-  3. this is not a stop the gate already blocked (stop_hook_active).
-A ledger is blocked at most twice; after that the gate reports and allows.
-Then it checks protected paths and runs the check in the workspace root,
-unless the tree is unchanged since a green run it recorded.
+  3. this is not a stop the gate already blocked (stop_hook_active);
+  4. the ledger has been blocked fewer than two times. At the cap the ledger
+     is closed and gating ends for it.
+Then it runs the check in the workspace root, unless the tree is unchanged
+since a green run it recorded, and compares protected paths afterwards.
+
+With no ledger (RULINGS R13): in `block` mode the main session is blocked
+once, at its first stop after editing files, and told to record a check or to
+record that none can exist.
 
   green, nothing protected changed without authorisation -> close, allow
   red, or an unauthorised protected change               -> exit 2, reason on stderr
@@ -32,33 +37,63 @@ def _say(event, message, context=None):
 
 
 def _run_check(command, root, timeout_s):
-    """(verdict, exit_code, output). The check gets its own process group so a
-    timeout kills what it started, not only the shell."""
+    """(verdict, exit_code, output tail). The check gets its own process group
+    so a timeout kills what it started, not only the shell.
+
+    Output goes to a file, not a pipe: the verdict then depends on the shell
+    exiting, not on every child closing stdout, and a check that prints
+    hundreds of megabytes is not held in memory.
+    """
     import signal
     import subprocess
-    proc = subprocess.Popen(
-        command, shell=True, cwd=root, stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True,
-        env=dict(os.environ, JORDAN_GATE="1"))
-    try:
-        out, _ = proc.communicate(timeout=timeout_s)
-    except subprocess.TimeoutExpired:
+    import tempfile
+    with tempfile.TemporaryFile() as sink:
+        proc = subprocess.Popen(
+            command, shell=True, cwd=root, stdin=subprocess.DEVNULL,
+            stdout=sink, stderr=subprocess.STDOUT, start_new_session=True,
+            env=dict(os.environ, JORDAN_GATE="1"))
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except OSError:
-            proc.kill()
-        try:
-            proc.communicate(timeout=5)
-        except Exception:
-            pass
-        return "timeout", None, ""
-    text = out.decode("utf-8", "replace")
+            proc.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                pass
+            return "timeout", None, ""
+        size = sink.seek(0, os.SEEK_END)
+        sink.seek(max(0, size - 65536))
+        text = sink.read().decode("utf-8", "replace")
     return ("green" if proc.returncode == 0 else "red"), proc.returncode, text
 
 
-def _capped_message(lib, verdict):
-    return ("JORDAN done-gate: this ledger has been blocked %d times and is not blocked again. "
-            "Check verdict: %s. Treat the result as unverified." % (lib.MAX_BLOCKS, verdict))
+def _ledger_prompt(lib, payload, event):
+    """R13 block: once per main session that edited files and recorded nothing."""
+    if event != "Stop" or payload.get("agent_id"):
+        return 0  # never a subagent
+    if payload.get("stop_hook_active") in (True, "true") or payload.get("background_tasks"):
+        return 0
+    state_path = lib.session_state_path(payload)
+    state = lib.read_json(state_path) if state_path else None
+    # The state file is written by the PreToolUse hook on the first Edit or
+    # Write; a session that only read files has none and costs one failed open.
+    if not state or not state.get("edited") or state.get("stop_blocked"):
+        return 0
+    if lib.has_ledger(payload) or lib.ledger_required() != "block":
+        return 0
+    state["stop_blocked"] = True
+    lib.write_json(state_path, state)
+    sys.stderr.write(
+        "JORDAN: this session edited files and no check was recorded, so nothing has verified "
+        "the work. Before stopping, do one of these:\n"
+        "  1. jordan-ledger open --check '<command>'   records the check; it runs when you stop.\n"
+        "  2. jordan-ledger open --none --reason '<why>'   if no check can exist; then report "
+        "the result as unverified.\n"
+        "This is asked once per session.\n")
+    return 2
 
 
 def _tail(text, lines=40, width=400, total=8000):
@@ -69,19 +104,30 @@ def _tail(text, lines=40, width=400, total=8000):
 def main():
     import jordan_lib as lib
     payload = lib.read_payload()
-    if not payload.get("session_id") or not os.path.isdir(lib.ledgers_dir()):
+    if not payload.get("session_id"):
         return 0
     event = payload.get("hook_event_name") or "Stop"
-    # Fallback claim, for when no tool call followed `jordan-ledger open`.
-    lib.claim_pending(payload, immediate=True)
-    owned = lib.load_owned(payload)
+    owned = None
+    if os.path.isdir(lib.ledgers_dir()):
+        # Fallback claim, for when the opening tool call's own event was missed.
+        lib.claim_pending(payload, "stop")
+        owned = lib.load_owned(payload)
     if not owned:
-        return 0
+        return _ledger_prompt(lib, payload, event)
     path, led = owned
     if payload.get("background_tasks"):
         return 0  # the turn ended but the work has not (REDTEAM B3)
-    if payload.get("stop_hook_active") is True:
+    if payload.get("stop_hook_active") in (True, "true"):
         return 0  # one block per stop chain
+    if int(led.get("blocks") or 0) >= lib.MAX_BLOCKS:
+        # R4 item 4: the cap ends gating. Closing the ledger makes that hold
+        # for every later stop without running anything.
+        led["passes"] = False
+        lib.close_ledger(path, led, "cap")
+        _say(event, "JORDAN done-gate: this ledger was blocked %d times and is now closed without "
+             "a passing check (last verdict: %s). Treat the result as unverified."
+             % (lib.MAX_BLOCKS, (led.get("last_run") or {}).get("verdict", "not run")))
+        return 0
 
     # Two Stop events can arrive for one turn; the second must not run the
     # check alongside the first.
@@ -104,28 +150,18 @@ def main():
 def _gate(lib, event, path, led):
     root = led["root"]
     if not os.path.isdir(root):
-        raise RuntimeError("workspace root %s no longer exists" % root)
+        # A removed worktree: close it, or every later stop reports the same error.
+        led["passes"] = False
+        lib.close_ledger(path, led, "error")
+        _say(event, "JORDAN done-gate: workspace %s no longer exists; the ledger is closed and "
+             "its check was NOT verified." % root)
+        return 0
     notes = []
     last = led.get("last_run") or {}
     before = lib.tree_hash(led)
     unchanged = before is not None and before == last.get("tree_hash")
     if unchanged and last.get("verdict") == "timeout":
         return 0  # already reported; running it again would only time out again
-    # At the cap the gate never blocks again, but a tree that changed since is
-    # still checked once, so work that was fixed late closes green rather than
-    # leaving a red ledger behind.
-    capped = int(led.get("blocks") or 0) >= lib.MAX_BLOCKS
-    if capped and unchanged and last.get("verdict") == "red":
-        _say(event, _capped_message(lib, "red"))
-        return 0
-
-    changes = lib.protected_changes(led)
-    if changes is None:
-        if not led.get("nongit_noticed"):
-            notes.append("not a git workspace, so no path protection is claimed")
-        unauth, auth = [], []
-    else:
-        unauth, auth = changes
 
     if unchanged and last.get("verdict") == "green":
         verdict, code, output = "green", 0, ""  # nothing changed since it passed
@@ -139,6 +175,15 @@ def _gate(lib, event, path, led):
             "tree_hash": lib.tree_hash(led),
         }
 
+    # Compared after the run, so a check that rewrites existing tests
+    # (`jest -u`, a formatter with --fix) is seen as well.
+    changes = lib.protected_changes(led)
+    if changes is None:
+        notes.append("not a git workspace, so no path protection is claimed")
+        unauth, auth = [], []
+    else:
+        unauth, auth = changes
+
     if verdict == "timeout":
         led["passes"] = "timeout"
         lib.write_json(path, led)
@@ -149,11 +194,6 @@ def _gate(lib, event, path, led):
 
     if verdict == "red" or unauth:
         led["passes"] = False
-        if capped:
-            lib.write_json(path, led)
-            _say(event, _capped_message(lib, "red" if verdict == "red" else
-                                        "green, with unauthorised changes to protected files"))
-            return 0
         led["blocks"] = int(led.get("blocks") or 0) + 1
         lib.write_json(path, led)
         parts = []
@@ -173,8 +213,6 @@ def _gate(lib, event, path, led):
         return 2
 
     led["passes"] = True
-    if notes:
-        led["nongit_noticed"] = True
     lib.close_ledger(path, led, "gate")
     for rel, reason in auth:
         notes.append("authorised change to protected file %s (%s)" % (rel, reason))

@@ -137,7 +137,7 @@ class OpenTests(Base):
         root = self.repo()
         self.open(root, "echo one")
         res = self.cli("open", "--check", "echo two", cwd=root)
-        self.assertIn("already exists", res.stdout)
+        self.assertIn("another open ledger exists", res.stdout)
         self.claim(root)
         self.assertEqual(self.ledger_files(), ["S1.json"])
         self.assertEqual(self.read("S1.json")["check"], "echo two")
@@ -200,25 +200,87 @@ class ClaimTests(Base):
         self.claim(os.path.join(root, "tests"))
         self.assertEqual(self.ledger_files(), ["S1.json"])
 
-    def test_unrelated_event_waits_for_grace_period(self):
-        # A sibling agent's tool call must not take a ledger that was just
-        # opened by someone else; the call that ran jordan-ledger claims at once.
+    def age_pending(self, seconds):
+        pending = os.path.join(self.home, "ledgers", self.ledger_files()[0])
+        old = time.time() - seconds
+        os.utime(pending, (old, old))
+
+    def test_other_tool_call_claims_only_within_the_grace_window(self):
+        # R14 / refutation R-4: an ordinary tool call claims only right after
+        # the open (it was run through a wrapper); later it is someone else.
         root = self.repo()
         self.cli("open", "--check", "true", cwd=root)
+        self.age_pending(60)
         self.claim(root, sid="S9", command="ls")
         self.assertTrue(self.ledger_files()[0].startswith("pending-"))
-        pending = os.path.join(self.home, "ledgers", self.ledger_files()[0])
-        old = time.time() - 60
-        os.utime(pending, (old, old))
-        self.claim(root, sid="S9", command="ls")
+        self.cli("open", "--check", "true", cwd=root)
+        self.claim(root, sid="S9", command="./scripts/start-task.sh")
         self.assertEqual(self.ledger_files(), ["S9.json"])
+
+    def test_opener_claims_from_a_directory_above_the_workspace(self):
+        # Refutation R-4: `cd r && jordan-ledger open ...` issued from the parent.
+        root = self.repo()
+        self.cli("open", "--check", "true", cwd=root)
+        self.age_pending(120)
+        self.claim(self.tmp, command="cd repo && jordan-ledger open --check true")
+        self.assertEqual(self.ledger_files(), ["S1.json"])
+
+    def test_opener_in_an_unrelated_directory_does_not_claim_unhinted(self):
+        root = self.repo()
+        other = self.repo(name="other")
+        self.cli("open", "--check", "true", cwd=root)
+        self.claim(other, sid="S2", command="jordan-ledger status")
+        self.assertTrue(self.ledger_files()[0].startswith("pending-"))
+
+    def test_hinted_ledger_is_claimed_by_its_session_from_any_cwd(self):
+        root = self.repo()
+        self.cli("open", "--check", "true", cwd=root, env=dict(self.env, CLAUDE_CODE_SESSION_ID="S1"))
+        self.claim(os.path.join(self.tmp, "home"), command="cd ../repo; jordan-ledger open --check true")
+        self.assertEqual(self.ledger_files(), ["S1.json"])
+
+    def stop(self, root, sid, agent=None):
+        payload = {"session_id": sid, "cwd": root, "stop_hook_active": False,
+                   "hook_event_name": "SubagentStop" if agent else "Stop"}
+        if agent:
+            payload["agent_id"] = agent
+        return self.hook("done_gate", payload)
+
+    def test_subagent_stop_never_takes_the_parents_pending_ledger(self):
+        # Refutation R-3: a subagent shares the session id, so the hint cannot
+        # tell it from its parent. It used to be blocked by the parent's check
+        # while the parent then stopped ungated.
+        root = self.repo()
+        self.cli("open", "--check", "echo x; false", cwd=root, env=dict(self.env, CLAUDE_CODE_SESSION_ID="S1"))
+        res = self.stop(root, "S1", agent="sub1")
+        self.assertEqual((res.returncode, res.stdout, res.stderr), (0, "", ""))
+        self.assertTrue(self.ledger_files()[0].startswith("pending-"))
+        res = self.stop(root, "S1")
+        self.assertEqual(res.returncode, 2)
+        self.assertEqual(self.ledger_files(), ["S1.json"])
+
+    def test_stop_never_claims_an_unhinted_pending_ledger(self):
+        # Refutation R-4: any session stopping in the repo used to take it and
+        # be blocked by a check it never recorded.
+        root = self.repo()
+        counter = os.path.join(self.tmp, "runs")
+        self.cli("open", "--check", "echo ran >> %s; false" % counter, cwd=root)
+        for age in (0, 60, 899):
+            self.age_pending(age)
+            res = self.stop(root, "B")
+            self.assertEqual((res.returncode, res.stdout, res.stderr), (0, "", ""), age)
+        self.assertTrue(self.ledger_files()[0].startswith("pending-"))
+        self.assertFalse(os.path.exists(counter))
+
+    def test_stop_of_another_session_does_not_claim_a_hinted_ledger(self):
+        root = self.repo()
+        self.cli("open", "--check", "false", cwd=root, env=dict(self.env, CLAUDE_CODE_SESSION_ID="S1"))
+        self.assertEqual(self.stop(root, "S2").returncode, 0)
+        self.assertTrue(self.ledger_files()[0].startswith("pending-"))
 
     def test_stale_pending_is_never_claimed(self):
         root = self.repo()
         self.cli("open", "--check", "true", cwd=root)
-        pending = os.path.join(self.home, "ledgers", self.ledger_files()[0])
-        old = time.time() - 3600
-        os.utime(pending, (old, old))
+        self.age_pending(3600)
         self.claim(root)
         self.assertTrue(self.ledger_files()[0].startswith("pending-"))
 
@@ -291,6 +353,64 @@ class CommandTests(Base):
         self.assertEqual(res.returncode, 0, res.stderr)
         entry = self.read("S1.json")["authorised"][0]
         self.assertEqual((entry["path"], entry["reason"]), ("tests/test_app.py", "spec changed"))
+
+    def test_open_none_records_an_unverified_ledger(self):
+        # RULINGS R13: the decision not to verify is on file, and nothing is gated.
+        root = self.repo()
+        res = self.cli("open", "--none", "--reason", "docs-only change", cwd=root)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("unverified", res.stdout)
+        self.claim(root, command="jordan-ledger open --none --reason x")
+        led = self.read("S1.json")
+        self.assertEqual((led["state"], led["check"], led["closed_by"]), ("closed", None, "none"))
+        self.assertEqual((led["mark"]["kind"], led["mark"]["reason"]), ("unverified", "docs-only change"))
+        res = self.hook("done_gate", {"session_id": "S1", "cwd": root, "hook_event_name": "Stop",
+                                      "stop_hook_active": False})
+        self.assertEqual((res.returncode, res.stdout, res.stderr), (0, "", ""))
+        self.assertIn("marked unverified: docs-only change", self.cli("status", cwd=root).stdout)
+
+    def test_open_needs_exactly_one_of_check_or_none(self):
+        root = self.repo()
+        for args in (("open",), ("open", "--none"), ("open", "--none", "--reason", " "),
+                     ("open", "--check", "true", "--none", "--reason", "r"),
+                     ("open", "--check", "true", "--reason", "r")):
+            self.assertEqual(self.cli(*args, cwd=root).returncode, 2, args)
+        self.assertEqual(self.ledger_files(), [])
+
+    def test_open_refuses_when_jordan_home_is_inside_the_workspace(self):
+        # Refutation R-9: a dotfiles repo at ~ with the default JORDAN_HOME.
+        root = self.repo()
+        env = dict(self.env, JORDAN_HOME=os.path.join(root, ".claude", "jordan"))
+        res = self.cli("open", "--check", "true", cwd=root, env=env)
+        self.assertEqual(res.returncode, 2)
+        self.assertIn("inside this workspace", res.stderr)
+        self.assertFalse(os.path.exists(os.path.join(root, ".claude")))
+        # Ignored by git, it cannot disturb the tree, so it is accepted.
+        with open(os.path.join(root, ".git", "info", "exclude"), "a") as fh:
+            fh.write(".claude/\n")
+        self.assertEqual(self.cli("open", "--check", "true", cwd=root, env=env).returncode, 0)
+        self.assertEqual(self.sh("git status --porcelain", root).stdout, "")
+
+    def test_authorise_refuses_a_path_outside_the_workspace(self):
+        # Refutation N-7.
+        root = self.repo()
+        self.open(root)
+        for target in ("/etc/passwd", ".", "../other/file.py"):
+            res = self.cli("authorise", target, "--reason", "r", cwd=root)
+            self.assertEqual(res.returncode, 1, target)
+            self.assertIn("not a file inside the workspace", res.stderr)
+        self.assertEqual(self.read("S1.json")["authorised"], [])
+        self.assertEqual(self.cli("authorise", "tests/*.py", "--reason", "r", cwd=root).returncode, 0)
+
+    def test_second_session_note_does_not_claim_replacement(self):
+        # Refutation R-10: the old note said the other ledger would be replaced.
+        root = self.repo()
+        self.open(root, "echo A", sid="A")
+        res = self.cli("open", "--check", "echo B", cwd=root)
+        self.assertIn("stays open", res.stdout)
+        self.assertNotIn("is replaced when", res.stdout)
+        self.claim(root, sid="B")
+        self.assertEqual(self.ledger_files(), ["A.json", "B.json"])
 
     def test_acts_on_pending_before_claim(self):
         root = self.repo()

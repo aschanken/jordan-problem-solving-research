@@ -311,3 +311,23 @@ Not verified:
   hook tests cover both against the repository copy.
 - macOS and Windows.
 - The swarmfucker integration.
+
+## The ledger prompt
+
+The pilot showed agents do not record a check unprompted, so the hooks ask
+(RULINGS R13). `$JORDAN_HOME/config.json` sets the behaviour:
+
+```json
+{ "ledger_required": "block" }
+```
+
+- `block` (default): one line of context on an owner's first edit when no check
+  is recorded, and one block at stop, once per session, main session only, if
+  the session edited files and never opened a ledger.
+- `nudge`: the context line only.
+- `off`: neither.
+
+The two ways through are `jordan-ledger open --check '<command>'` and
+`jordan-ledger open --none --reason '<why>'`. Verified live on CLI 2.1.330:
+the context line reaches the model and the edit proceeds. The stop block and
+the subagent nudge are unit-tested only.
